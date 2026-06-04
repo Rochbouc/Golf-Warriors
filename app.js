@@ -231,7 +231,7 @@ function ProfilePage({currentUser,onUpdate,toast}){
 /* ── STATS ── */
 function Stats({teeTimes,players}){
   const upcoming=teeTimes.filter(isUpcoming).length;
-  const confirmed=teeTimes.reduce((a,t)=>a+Object.values(t.rsvps||{}).filter(r=>r==='yes').length,0);
+  const confirmed=teeTimes.reduce((a,t)=>a+Object.values(t.rsvps||{}).filter(r=>r==='yes').length+(t.guests||[]).filter(g=>g.rsvp==='yes').length,0);
   return(
     <div className="stats">
       {[{lbl:'Upcoming',val:upcoming,sub:'rounds'},{lbl:'Total',val:teeTimes.length,sub:'all time'},
@@ -244,9 +244,9 @@ function Stats({teeTimes,players}){
 /* ── TEE CARD ── */
 function TeeCard({tee,players,currentUser,onOpen,onDelete,isAdmin}){
   const rsvps=tee.rsvps||{};
-  const yes=Object.values(rsvps).filter(r=>r==='yes').length;
-  const no=Object.values(rsvps).filter(r=>r==='no').length;
-  const pend=Math.max(0,(tee.invites||[]).length-yes-no);
+  const yes=Object.values(rsvps).filter(r=>r==='yes').length+(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
+  const no=Object.values(rsvps).filter(r=>r==='no').length+(tee.guests||[]).filter(g=>g.rsvp==='no').length;
+  const pend=Math.max(0,(tee.invites||[]).length-Object.values(rsvps).filter(r=>r==='yes').length-Object.values(rsvps).filter(r=>r==='no').length+(tee.guests||[]).filter(g=>!g.rsvp).length);
   const invitedPlayers=(tee.invites||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
   const myStatus=rsvps[currentUser?.id];
   const myBadge=myStatus==='yes'
@@ -338,7 +338,7 @@ function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuest
 
           {/* My RSVP — always visible to any logged-in player */}
           {(()=>{
-            const yesCount=Object.values(rsvps).filter(r=>r==='yes').length;
+            const yesCount=Object.values(rsvps).filter(r=>r==='yes').length+(live.guests||[]).filter(g=>g.rsvp==='yes').length;
             const isFull=yesCount>=4;
             const alreadyIn=myStatus==='yes';
             return(
