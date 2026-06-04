@@ -159,7 +159,7 @@ function LoginScreen({onLogin}){
 }
 
 /* ── PROFILE PAGE ── */
-function ProfilePage({currentUser,onUpdate,toast}){
+function ProfilePage({currentUser,onUpdate,onLogout,toast}){
   const[name,setName]=useState(currentUser.name||'');
   const[email,setEmail]=useState(currentUser.email||'');
   const[pass,setPass]=useState('');
@@ -220,7 +220,14 @@ function ProfilePage({currentUser,onUpdate,toast}){
           <div className="fg"><label>New Password</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Leave blank to keep current"/></div>
           <div className="fg"><label>Confirm Password</label><input type="password" value={pass2} onChange={e=>setPass2(e.target.value)} placeholder="Re-enter new password"/></div>
         </div>
-        <div className="factions">
+        <div className="factions" style={{justifyContent:'space-between'}}>
+          <button onClick={onLogout}
+            style={{background:'transparent',border:'1px solid #ef9a9a',color:'var(--red)',padding:'.62rem 1.2rem',
+              borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.78rem',fontWeight:600,cursor:'pointer',transition:'all .15s'}}
+            onMouseEnter={e=>{e.target.style.background='var(--red-dim)'}}
+            onMouseLeave={e=>{e.target.style.background='transparent'}}>
+            Sign Out
+          </button>
           <button className="btn-p" onClick={save}>Save Changes</button>
         </div>
       </div>
@@ -1162,7 +1169,19 @@ function App(){
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee')}} onNew={date=>{setEditTee(null);setBookDate(date);setTab('new-tee')}} canManagePlayers={canManagePlayers}/>}
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast}/>}
       {tab==='history'&&<History teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} isAdmin={isAdmin}/>}
-      {tab==='profile'&&<ProfilePage currentUser={currentUser} onUpdate={handleUpdateUser} toast={toast}/>}
+      {tab==='profile'&&<ProfilePage currentUser={currentUser} onUpdate={handleUpdateUser} onLogout={handleLogout} toast={toast}/>}
+
+      {/* Desktop floating sign-out (hidden on mobile — use Profile page instead) */}
+      <button onClick={handleLogout}
+        style={{position:'fixed',bottom:'1.25rem',right:'1.25rem',background:'#fff',border:'1px solid var(--border)',
+          color:'var(--text3)',padding:'.4rem .9rem',borderRadius:'var(--r-pill)',
+          fontFamily:'Syne,sans-serif',fontSize:'.72rem',fontWeight:600,cursor:'pointer',
+          transition:'all .15s',zIndex:100,boxShadow:'var(--sh)'}}
+        onMouseEnter={e=>{e.currentTarget.style.color='var(--red)';e.currentTarget.style.borderColor='#ef9a9a'}}
+        onMouseLeave={e=>{e.currentTarget.style.color='var(--text3)';e.currentTarget.style.borderColor='var(--border)'}}
+        className="desktop-signout">
+        Sign Out
+      </button>
 
       {/* Edit tee time */}
       {editTee&&tab==='new-tee'&&<BookTeeTime tee={editTee} players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setEditTee(null);setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={true}/>}

@@ -315,6 +315,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
   .ph h1{font-size:1.75rem}
   .modal{max-width:100%;border-radius:20px 20px 0 0;position:fixed;bottom:0;left:0;right:0;max-height:92vh}
   .overlay{align-items:flex-end;padding:0}
+  .desktop-signout{display:none!important}
 
   /* Bottom nav */
   .bottom-nav{
