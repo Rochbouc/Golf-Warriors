@@ -312,7 +312,7 @@ function TeeCard({tee,players,currentUser,onOpen,onDelete,isAdmin}){
 }
 
 /* ── TEE TIME DETAIL MODAL ── */
-function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuestRsvp,onEdit,isAdmin}){
+function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuestRsvp,onEdit,isAdmin,canManagePlayers}){
   if(!tee)return null;
   const live=teeTimes.find(t=>t.id===tee.id)||tee;
   const rsvps=live.rsvps||{};
@@ -320,7 +320,7 @@ function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuest
   const pending=invitedPlayers.filter(p=>!rsvps[p.id]);
   const myStatus=rsvps[currentUser.id];
   const isInvited=(live.invites||[]).includes(currentUser.id);
-  const canManage=isAdmin||live.createdBy===currentUser.id;
+  const canManage=isAdmin||canManagePlayers||live.createdBy===currentUser.id;
 
   return(
     <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
@@ -398,6 +398,7 @@ function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuest
                 {invitedPlayers.map(p=>{
                   const s=rsvps[p.id];
                   const isMe=p.id===currentUser.id;
+                  const canChange=isMe||canManage;
                   return(
                     <div className="rsvp-row" key={p.id} style={{background:isMe?'#f0f9f1':'',borderColor:isMe?'#a5d6a7':''}}>
                       <div className="rsvp-av" style={{background:p.photo?'transparent':avColor(p.name)}}>{p.photo?<img src={p.photo} alt={p.name}/>:initials(p.name)}</div>
@@ -405,7 +406,19 @@ function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuest
                         <div className="rsvp-name">{p.name}{isMe&&<span style={{fontSize:'.6rem',color:'#276228',marginLeft:'.4rem',fontWeight:700,letterSpacing:'.04em'}}>YOU</span>}</div>
                         <div className="rsvp-email">{p.email}</div>
                       </div>
-                      <span className={`badge ${s||'pending'}`}>{s==='yes'?'✅ In':s==='no'?'❌ Out':'⏳ Pending'}</span>
+                      {canChange
+                        ?<div style={{display:'flex',gap:'.3rem',flexShrink:0}}>
+                            <button onClick={()=>onRsvp(live.id,p.id,'yes')}
+                              style={{padding:'.25rem .5rem',border:`1.5px solid ${s==='yes'?'#276228':'#ddd'}`,borderRadius:6,background:s==='yes'?'#edf7ee':'#fff',color:s==='yes'?'#276228':'#555',fontSize:'.72rem',fontWeight:700,cursor:'pointer'}}>
+                              ✅ In
+                            </button>
+                            <button onClick={()=>onRsvp(live.id,p.id,'no')}
+                              style={{padding:'.25rem .5rem',border:`1.5px solid ${s==='no'?'#c62828':'#ddd'}`,borderRadius:6,background:s==='no'?'#fce8e6':'#fff',color:s==='no'?'#c62828':'#555',fontSize:'.72rem',fontWeight:700,cursor:'pointer'}}>
+                              ❌ Out
+                            </button>
+                          </div>
+                        :<span className={`badge ${s||'pending'}`}>{s==='yes'?'✅ In':s==='no'?'❌ Out':'⏳ Pending'}</span>
+                      }
                     </div>
                   );
                 })}
@@ -453,7 +466,7 @@ function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuest
 }
 
 /* ── BOOK / EDIT TEE TIME ── */
-function BookTeeTime({tee,players,currentUser,onSave,onCancel,toast,isEdit,defaultDate}){
+function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,toast,isEdit,defaultDate}){
   const today=new Date().toISOString().split('T')[0];
   const[course,setCourse]=useState(tee?.course||'');
   const[date,setDate]=useState(tee?.date||defaultDate||'');
@@ -538,7 +551,8 @@ function BookTeeTime({tee,players,currentUser,onSave,onCancel,toast,isEdit,defau
           </div>
         </div>
 
-        {/* Guest Players */}
+        {/* Guest Players — managers/admins only */}
+        {canManagePlayers&&(
         <div className="isec">
           <h3>Guest Players <span style={{fontSize:'.72rem',fontWeight:500,color:'var(--text3)',fontFamily:'Syne,sans-serif'}}>— no account needed</span></h3>
           <p className="hint">Add temporary guests by name only. Anyone can update their status in the app.</p>
@@ -565,6 +579,7 @@ function BookTeeTime({tee,players,currentUser,onSave,onCancel,toast,isEdit,defau
             <button className="btn-s" onClick={addGuest}>+ Add</button>
           </div>
         </div>
+        )} {/* end canManagePlayers guest section */}
 
         <div className="factions">
           <button className="btn-s" onClick={onCancel}>Cancel</button>
@@ -1143,19 +1158,19 @@ function App(){
       </nav>
 
       {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee')}} isAdmin={isAdmin}/>}
-      {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
+      {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee')}} onNew={date=>{setEditTee(null);setBookDate(date);setTab('new-tee')}} canManagePlayers={canManagePlayers}/>}
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast}/>}
       {tab==='history'&&<History teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} isAdmin={isAdmin}/>}
       {tab==='profile'&&<ProfilePage currentUser={currentUser} onUpdate={handleUpdateUser} toast={toast}/>}
 
       {/* Edit tee time */}
-      {editTee&&tab==='new-tee'&&<BookTeeTime tee={editTee} players={players} currentUser={currentUser} onSave={handleSaveTee} onCancel={()=>{setEditTee(null);setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={true}/>}
+      {editTee&&tab==='new-tee'&&<BookTeeTime tee={editTee} players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setEditTee(null);setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={true}/>}
 
       {detailTee&&<TeeDetailModal tee={detailTee} teeTimes={teeTimes} players={players} currentUser={currentUser}
         onClose={()=>setDetailTee(null)} onRsvp={handleRsvp} onGuestRsvp={handleGuestRsvp}
         onEdit={t=>{setDetailTee(null);setEditTee(t);setTab('new-tee')}}
-        isAdmin={isAdmin}/>}
+        isAdmin={isAdmin} canManagePlayers={canManagePlayers}/>}
       {showSettings&&<SettingsModal onClose={saved=>{setShowSettings(false);if(saved)toast('EmailJS settings saved! ✅')}}/>}
 
       <Toast msg={toastMsg} type={toastType}/>
