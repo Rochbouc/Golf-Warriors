@@ -1,5 +1,27 @@
 const {useState,useEffect,useRef,useCallback}=React;
 
+/* ── MOBILE ONLY — redirect desktops ── */
+function DesktopBlock(){
+  return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',
+      background:'#f7f7f5',fontFamily:'Syne,sans-serif',padding:'2rem',textAlign:'center'}}>
+      <div style={{maxWidth:420}}>
+        <div style={{fontSize:'3rem',marginBottom:'1rem'}}>⛳</div>
+        <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'2rem',fontWeight:700,color:'#111',marginBottom:'.75rem'}}>
+          Golf Warriors
+        </h1>
+        <p style={{fontSize:'1rem',color:'#555',marginBottom:'1.5rem',lineHeight:1.6}}>
+          This app is designed for <strong>mobile phones</strong>.<br/>
+          Please open it on your phone.
+        </p>
+        <p style={{fontSize:'.8rem',color:'#999',lineHeight:1.6}}>
+          Visit <strong style={{color:'#111'}}>{window.location.hostname}</strong> on your phone's browser.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ── SEED DATA ── */
 const SEED_PLAYERS=[
   {id:'p1',name:'Chris Leger',email:'legerchris83@gmail.com',password:'golf',photo:null,role:'player'},
@@ -33,48 +55,6 @@ const isUpcoming=tee=>{
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 /* ── STORAGE ── */
-/* ── FIREBASE CONFIG ── */
-function getFBConfig(){return JSON.parse(localStorage.getItem('gw_fb')||'null')}
-function isFBConfigured(){const c=getFBConfig();return !!(c&&c.databaseURL)}
-
-let _fbApp=null,_fbDb=null;
-async function getFBDb(){
-  if(_fbDb)return _fbDb;
-  const cfg=getFBConfig();
-  if(!cfg||!cfg.databaseURL)return null;
-  try{
-    if(!window.firebase){
-      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js');
-    }
-    if(!_fbApp){
-      _fbApp=window.firebase.apps.length?window.firebase.apps[0]:window.firebase.initializeApp(cfg);
-    }
-    _fbDb=window.firebase.database(_fbApp);
-    return _fbDb;
-  }catch(e){console.warn('Firebase init failed',e);return null;}
-}
-function loadScript(src){
-  return new Promise((res,rej)=>{
-    if(document.querySelector(`script[src="${src}"]`)){res();return;}
-    const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);
-  });
-}
-async function fbRead(path){
-  const db=await getFBDb();if(!db)return null;
-  const snap=await db.ref(path).get();
-  return snap.exists()?snap.val():null;
-}
-async function fbWrite(path,data){
-  const db=await getFBDb();if(!db)return false;
-  await db.ref(path).set(data);return true;
-}
-async function fbOnValue(path,cb){
-  const db=await getFBDb();if(!db)return ()=>{};
-  const ref=db.ref(path);ref.on('value',snap=>cb(snap.exists()?snap.val():null));
-  return()=>ref.off('value');
-}
-
 /* ── STORAGE ── */
 function loadPlayers(){
   const s=localStorage.getItem('gw_players');
@@ -96,12 +76,24 @@ function loadPlayers(){
 }
 function savePlayers(p){
   localStorage.setItem('gw_players',JSON.stringify(p));
-  fbWrite('players',p).catch(()=>{});
 }
-function loadTeeTimes(){return JSON.parse(localStorage.getItem('gw_tt')||'[]')}
+function loadTeeTimes(){
+  const stored=JSON.parse(localStorage.getItem('gw_tt')||'[]');
+  // Seed the 4 demo tee times if storage is empty
+  if(stored.length===0){
+    const seed=[
+      {id:'tt1',course:'Memramcook',date:'2026-06-06',time:'08:30',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{p9:'yes',p2:'yes',p3:'yes'},createdBy:'p9',createdAt:new Date().toISOString()},
+      {id:'tt2',course:'Memramcook',date:'2026-06-06',time:'08:48',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{},createdBy:'p9',createdAt:new Date().toISOString()},
+      {id:'tt3',course:'Memramcook',date:'2026-06-07',time:'08:30',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{p9:'yes'},createdBy:'p9',createdAt:new Date().toISOString()},
+      {id:'tt4',course:'Memramcook',date:'2026-06-07',time:'08:48',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{},createdBy:'p9',createdAt:new Date().toISOString()},
+    ];
+    localStorage.setItem('gw_tt',JSON.stringify(seed));
+    return seed;
+  }
+  return stored;
+}
 function saveTeeTimes(t){
   localStorage.setItem('gw_tt',JSON.stringify(t));
-  fbWrite('teeTimes',t).catch(()=>{});
 }
 function getEJSConfig(){return JSON.parse(localStorage.getItem('ejs_cfg')||'{"publicKey":"","serviceId":"","templateId":"","appUrl":""}')}
 function isEJSConfigured(){const c=getEJSConfig();return !!(c.publicKey&&c.serviceId&&c.templateId)}
@@ -941,7 +933,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
 }
 
 /* ── DASHBOARD ── */
-function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin,onOpenSettings}){
+function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin}){
   const upcoming=teeTimes.filter(isUpcoming);
   return(
     <div className="page">
@@ -949,19 +941,6 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin,o
         <div className="ph-left"><div className="ph-eyebrow">Golf Tee Time Planner</div><h1>Upcoming Rounds</h1></div>
         <button className="btn-p" onClick={onNew}>+ Book Tee Time</button>
       </div>
-
-      {/* Sync warning — only shown to managers/admins when Firebase not set up */}
-      {isAdmin&&!isFBConfigured()&&(
-        <div style={{background:'#fff8e1',border:'1px solid #ffe082',borderRadius:'var(--r-sm)',padding:'.75rem 1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
-          <div style={{fontSize:'.8rem',color:'#7c5c00',lineHeight:1.5}}>
-            <strong>⚠️ Data is not synced across devices.</strong> Tee times only exist on this device.
-            Set up Firebase or use Export/Import in Settings to share data with your phone.
-          </div>
-          <button onClick={onOpenSettings} style={{background:'#f57f17',color:'#fff',border:'none',padding:'.4rem .9rem',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.75rem',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
-            ⚙️ Set Up Sync
-          </button>
-        </div>
-      )}
 
       <Stats teeTimes={teeTimes} players={players}/>
       <div className="sec-label">Active Tee Times</div>
@@ -994,34 +973,16 @@ function History({teeTimes,players,currentUser,onOpen,isAdmin}){
 /* ── SETTINGS MODAL ── */
 function SettingsModal({onClose}){
   const saved=getEJSConfig();
-  const savedFB=getFBConfig()||{};
   const[pk,setPk]=useState(saved.publicKey||'');
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
-  const[fbUrl,setFbUrl]=useState(savedFB.databaseURL||'');
-  const[fbApiKey,setFbApiKey]=useState(savedFB.apiKey||'');
-  const[fbProject,setFbProject]=useState(savedFB.projectId||'');
-  const[fbStatus,setFbStatus]=useState('idle');
   const[status,setStatus]=useState('idle');const[statusMsg,setStatusMsg]=useState('');
   const save=()=>{
     localStorage.setItem('ejs_cfg',JSON.stringify({publicKey:pk.trim(),serviceId:sid.trim(),templateId:tid.trim(),appUrl:appUrl.trim()}));
-    if(fbUrl.trim()){localStorage.setItem('gw_fb',JSON.stringify({apiKey:fbApiKey.trim(),databaseURL:fbUrl.trim(),projectId:fbProject.trim()}));}
     onClose(true);
   };
-  const testFB=async()=>{
-    if(!fbUrl){setFbStatus('bad');return;}
-    setFbStatus('testing');
-    try{
-      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js');
-      const cfgObj={apiKey:fbApiKey.trim(),databaseURL:fbUrl.trim(),projectId:fbProject.trim()};
-      const app=window.firebase.apps.length?window.firebase.apps[0]:window.firebase.initializeApp(cfgObj);
-      const db=window.firebase.database(app);
-      await db.ref('_ping').set(Date.now());
-      setFbStatus('ok');
-    }catch(e){setFbStatus('bad');console.error(e);}
-  };
+
   const test=async()=>{
     if(!pk||!sid||!tid){setStatus('bad');setStatusMsg('Fill all three EmailJS fields first.');return;}
     setStatus('testing');setStatusMsg('Sending test…');
@@ -1035,37 +996,6 @@ function SettingsModal({onClose}){
       <div className="modal" style={{maxWidth:520}}>
         <div className="modal-head"><h2>⚙️ Settings</h2><button className="modal-x" onClick={()=>onClose(false)}>✕</button></div>
         <div className="modal-body">
-
-          {/* Firebase Sync */}
-          <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
-              <div className="settings-label" style={{margin:0}}>🔥 Firebase — Cloud Sync</div>
-              {fbUrl&&<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>}
-            </div>
-            <p className="hint" style={{marginBottom:'.75rem'}}>
-              <strong>Required</strong> so all players see the same tee times and RSVPs across every device. Free setup (~3 min): <a href="https://console.firebase.google.com" target="_blank" style={{color:'var(--text)',fontWeight:600}}>console.firebase.google.com</a> → New project → Realtime Database → Create (test mode).
-            </p>
-            <div style={{display:'flex',flexDirection:'column',gap:'.6rem'}}>
-              <div>
-                <div className="settings-label">Database URL</div>
-                <input className="settings-input" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com" value={fbUrl} onChange={e=>setFbUrl(e.target.value)}/>
-                <div className="settings-hint">Firebase Console → Realtime Database → Data tab (URL at the top)</div>
-              </div>
-              <div>
-                <div className="settings-label">Web API Key</div>
-                <input className="settings-input" type="text" placeholder="AIzaSy..." value={fbApiKey} onChange={e=>setFbApiKey(e.target.value)}/>
-                <div className="settings-hint">Firebase Console → Project Settings → General → Web API Key</div>
-              </div>
-              <div>
-                <div className="settings-label">Project ID</div>
-                <input className="settings-input" type="text" placeholder="your-project-id" value={fbProject} onChange={e=>setFbProject(e.target.value)}/>
-                <div className="settings-hint">Firebase Console → Project Settings → General → Project ID</div>
-              </div>
-            </div>
-            {fbStatus!=='idle'&&<div className={`settings-status ${fbStatus==='testing'?'idle':fbStatus==='ok'?'ok':'bad'}`} style={{marginTop:'.6rem'}}>
-              {fbStatus==='testing'?'⏳ Connecting…':fbStatus==='ok'?'✅ Firebase connected! All devices will now sync.':'❌ Failed. Check your Database URL and API key.'}
-            </div>}
-            <button className="btn-s" style={{marginTop:'.7rem',fontSize:'.75rem'}} onClick={testFB} disabled={fbStatus==='testing'}>Test Firebase Connection</button>
           </div>
 
           {/* App URL */}
@@ -1108,52 +1038,6 @@ function SettingsModal({onClose}){
           </div>
           {status!=='idle'&&<div className={`settings-status ${status==='testing'?'idle':status}`}>{status==='testing'?'⏳':status==='ok'?'✅':'❌'} {statusMsg}</div>}
 
-          {/* Export / Import — instant cross-device sync without Firebase */}
-          <div style={{marginTop:'1.5rem',paddingTop:'1.5rem',borderTop:'1px solid var(--border)'}}>
-            <div className="settings-label" style={{marginBottom:'.5rem'}}>📤 Export / Import Data</div>
-            <p className="hint" style={{marginBottom:'.75rem'}}>
-              No Firebase yet? Copy your data to another device instantly. <strong>Export</strong> on your desktop → <strong>Import</strong> on your phone.
-            </p>
-            <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
-              <button className="btn-s" style={{fontSize:'.78rem'}} onClick={()=>{
-                const data=JSON.stringify({
-                  teeTimes:JSON.parse(localStorage.getItem('gw_tt')||'[]'),
-                  players:JSON.parse(localStorage.getItem('gw_players')||'[]'),
-                  exported:new Date().toISOString()
-                });
-                const blob=new Blob([data],{type:'application/json'});
-                const a=document.createElement('a');
-                a.href=URL.createObjectURL(blob);
-                a.download='golf-warriors-data.json';
-                a.click();
-              }}>📥 Export Data</button>
-              <label className="btn-s" style={{fontSize:'.78rem',cursor:'pointer',display:'flex',alignItems:'center',gap:'.3rem'}}>
-                📤 Import Data
-                <input type="file" accept=".json" style={{display:'none'}} onChange={e=>{
-                  const file=e.target.files[0];if(!file)return;
-                  const reader=new FileReader();
-                  reader.onload=ev=>{
-                    try{
-                      const d=JSON.parse(ev.target.result);
-                      if(d.teeTimes&&Array.isArray(d.teeTimes)){
-                        localStorage.setItem('gw_tt',JSON.stringify(d.teeTimes));
-                      }
-                      if(d.players&&Array.isArray(d.players)){
-                        localStorage.setItem('gw_players',JSON.stringify(d.players));
-                      }
-                      alert('✅ Data imported! The page will reload.');
-                      window.location.reload();
-                    }catch{alert('❌ Invalid file. Make sure you exported from Golf Warriors.');}
-                  };
-                  reader.readAsText(file);
-                }}/>
-              </label>
-            </div>
-            <div className="settings-hint" style={{marginTop:'.5rem'}}>
-              Or set up Firebase above for automatic real-time sync across all devices.
-            </div>
-          </div>
-
           <div style={{display:'flex',gap:'.6rem',justifyContent:'flex-end',marginTop:'1.25rem',paddingTop:'1.1rem',borderTop:'1px solid var(--border)'}}>
             <button className="btn-s" onClick={test} disabled={status==='testing'}>Send Test Email</button>
             <button className="btn-p" onClick={save}>Save Settings</button>
@@ -1164,7 +1048,6 @@ function SettingsModal({onClose}){
   );
 }
 
-/* ── RSVP CONFIRM SCREEN ── */
 /* ── APP ── */
 function App(){
   const[currentUser,setCurrentUser]=useState(()=>{
@@ -1198,23 +1081,7 @@ function App(){
   useEffect(()=>{saveTeeTimes(teeTimes)},[teeTimes]);
   useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session')},[currentUser]);
 
-  // Firebase real-time sync — optional, app works without it
-  useEffect(()=>{
-    let unsubTT=()=>{};
-    if(!isFBConfigured())return;
-    try{
-      fbRead('teeTimes').then(data=>{
-        if(data&&Array.isArray(data)){localStorage.setItem('gw_tt',JSON.stringify(data));setTeeTimes(data);}
-      }).catch(()=>{});
-      fbRead('players').then(data=>{
-        if(data&&Array.isArray(data)){localStorage.setItem('gw_players',JSON.stringify(data));setPlayers(data);}
-      }).catch(()=>{});
-      fbOnValue('teeTimes',data=>{
-        if(data&&Array.isArray(data)){localStorage.setItem('gw_tt',JSON.stringify(data));setTeeTimes(data);}
-      }).then(fn=>{unsubTT=fn;}).catch(()=>{});
-    }catch(e){console.warn('Firebase sync error',e);}
-    return()=>{try{unsubTT();}catch{}};
-  },[]);
+
 
   // Auto-delete past tee times (4-hour grace so they don't vanish mid-round)
   useEffect(()=>{
@@ -1372,7 +1239,7 @@ function App(){
         </button>
       </nav>
 
-      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee')}} isAdmin={isAdmin} onOpenSettings={()=>setShowSettings(true)}/>}
+      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee')}} isAdmin={isAdmin}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee')}} onNew={date=>{setEditTee(null);setBookDate(date);setTab('new-tee')}} canManagePlayers={canManagePlayers}/>}
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast}/>}
@@ -1393,4 +1260,16 @@ function App(){
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+function Root(){
+  // Block desktop — only allow phones (screen width <= 768px)
+  const[isMobile,setIsMobile]=useState(window.innerWidth<=768);
+  useEffect(()=>{
+    const handler=()=>setIsMobile(window.innerWidth<=768);
+    window.addEventListener('resize',handler);
+    return()=>window.removeEventListener('resize',handler);
+  },[]);
+  if(!isMobile)return<DesktopBlock/>;
+  return<App/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
