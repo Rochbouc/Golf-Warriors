@@ -417,6 +417,18 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
   const[guests,setGuests]=useState(tee?.guests||[]);
   const[guestName,setGuestName]=useState('');
   const[sending,setSending]=useState(false);
+
+  // Auto-select any new players added while this form is open
+  useEffect(()=>{
+    if(!isEdit){
+      setSelected(prev=>{
+        const n=new Set(prev);
+        players.filter(p=>p.role!=='admin').forEach(p=>n.add(p.id));
+        return n;
+      });
+    }
+  },[players.length]);
+
   const toggle=id=>setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n});
   const addGuest=()=>{
     const name=guestName.trim();
@@ -437,7 +449,7 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
       const prevInvites=new Set(tee?.invites||[]);
       const toEmail=isEdit
         ? players.filter(p=>selected.has(p.id)&&!prevInvites.has(p.id))  // newly added only
-        : players.filter(p=>selected.has(p.id));                           // all selected
+        : players.filter(p=>selected.has(p.id));   // all selected including creator
       let ok=0,fail=0;
       for(const p of toEmail){
         try{await sendEJS(p.email,p.name,subject,buildInviteMsg(newTee,p.name));ok++;}
@@ -894,22 +906,9 @@ function App(){
   };
 
   const handleDelete=id=>{if(!confirm('Delete this tee time?'))return;setTeeTimes(p=>p.filter(t=>t.id!==id));toast('Tee time deleted.');};
-  const handleAddPlayer=async p=>{
+  const handleAddPlayer=p=>{
     const u=[...players,p];setPlayers(u);savePlayers(u);
-    // Send welcome email with app login link
-    if(isEJSConfigured()){
-      const appUrl=getAppUrl();
-      const subject='⛳ Welcome to Golf Warriors!';
-      const message=`Hi ${p.name},\n\nYou've been added to Golf Warriors, the tee time planner for your golf group!\n\nLog in to the app to see upcoming tee times and confirm your status:\n\n  ${appUrl}\n\nYour login details:\n  Email:    ${p.email}\n  Password: golf\n\nMake sure to update your password after your first login.\n\nSee you on the fairway! ⛳\n— Golf Warriors`;
-      try{
-        await sendEJS(p.email,p.name,subject,message);
-        toast(`${p.name} added and welcome email sent! ✅`);
-      }catch(e){
-        toast(`${p.name} added! ⚠️ Email failed — check EmailJS settings.`,'err');
-      }
-    } else {
-      toast(`${p.name} added! ⚠️ Configure EmailJS to send welcome emails.`);
-    }
+    toast(`${p.name} added! They will receive an email next time they are selected on a tee time.`);
   };
   const handleUpdatePlayer=u=>{const p=players.map(x=>x.id===u.id?u:x);setPlayers(p);savePlayers(p);if(currentUser.id===u.id)setCurrentUser(u);};
   const handleDeletePlayer=id=>{const p=players.filter(x=>x.id!==id);setPlayers(p);savePlayers(p);};
