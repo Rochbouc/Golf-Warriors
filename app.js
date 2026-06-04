@@ -21,7 +21,15 @@ const avColor=s=>{let h=0;for(let c of s)h=c.charCodeAt(0)+((h<<5)-h);return AV_
 const initials=n=>{const p=(n||'').split(' ');return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():(n||'??').substring(0,2).toUpperCase()};
 const fmtDate=d=>{if(!d)return'—';return new Date(d+'T12:00:00').toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric',year:'numeric'})};
 const fmtTime=t=>{if(!t)return'—';const[h,m]=t.split(':').map(Number);return`${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`};
-const isUpcoming=tee=>new Date(tee.date+'T'+tee.time)>=new Date();
+const isUpcoming=tee=>{
+  if(!tee.date||!tee.time)return true; // show if date missing
+  try{
+    // Ensure date is yyyy-mm-dd and time is HH:MM
+    const d=new Date(tee.date+'T'+tee.time+':00');
+    if(isNaN(d.getTime()))return true; // show if unparseable
+    return d>=new Date();
+  }catch{return true;}
+};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 /* ── STORAGE ── */
@@ -1031,10 +1039,18 @@ function App(){
   useEffect(()=>{saveTeeTimes(teeTimes)},[teeTimes]);
   useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session')},[currentUser]);
 
-  // Auto-delete past tee times
+  // Auto-delete past tee times (4-hour grace so they don't vanish mid-round)
   useEffect(()=>{
+    const GRACE=4*60*60*1000;
     const check=()=>setTeeTimes(prev=>{
-      const kept=prev.filter(t=>new Date(t.date+'T'+t.time)>=new Date());
+      const now=Date.now();
+      const kept=prev.filter(t=>{
+        if(!t.date||!t.time)return true;
+        try{
+          const d=new Date(t.date+'T'+t.time+':00').getTime();
+          return isNaN(d)||now<d+GRACE;
+        }catch{return true;}
+      });
       if(kept.length<prev.length)toast(`${prev.length-kept.length} past tee time${prev.length-kept.length>1?'s':''} removed.`);
       return kept;
     });
