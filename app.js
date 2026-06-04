@@ -312,7 +312,7 @@ function TeeCard({tee,players,currentUser,onOpen,onDelete,isAdmin}){
 }
 
 /* ── TEE TIME DETAIL MODAL ── */
-function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onEdit,isAdmin}){
+function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuestRsvp,onEdit,isAdmin}){
   if(!tee)return null;
   const live=teeTimes.find(t=>t.id===tee.id)||tee;
   const rsvps=live.rsvps||{};
@@ -386,28 +386,57 @@ function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onEdit,
 
           {/* All player statuses — visible to EVERYONE */}
           <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:'.5rem',display:'flex',alignItems:'center',gap:'.75rem'}}>
-            <span>Players ({invitedPlayers.length})</span>
-            <span style={{color:'#276228',fontWeight:700}}>✓ {Object.values(rsvps).filter(r=>r==='yes').length} In</span>
-            <span style={{color:'#c62828',fontWeight:700}}>✗ {Object.values(rsvps).filter(r=>r==='no').length} Out</span>
-            <span style={{color:'var(--text3)',fontWeight:700}}>? {pending.length} Pending</span>
+            <span>Players ({invitedPlayers.length + (live.guests||[]).length})</span>
+            <span style={{color:'#276228',fontWeight:700}}>✓ {Object.values(rsvps).filter(r=>r==='yes').length + (live.guests||[]).filter(g=>g.rsvp==='yes').length} In</span>
+            <span style={{color:'#c62828',fontWeight:700}}>✗ {Object.values(rsvps).filter(r=>r==='no').length + (live.guests||[]).filter(g=>g.rsvp==='no').length} Out</span>
+            <span style={{color:'var(--text3)',fontWeight:700}}>? {pending.length + (live.guests||[]).filter(g=>!g.rsvp).length} Pending</span>
           </div>
           <div className="rsvp-list">
-            {invitedPlayers.length===0
+            {invitedPlayers.length===0&&(live.guests||[]).length===0
               ?<p style={{fontSize:'.8rem',color:'var(--text3)'}}>No players invited yet.</p>
-              :invitedPlayers.map(p=>{
-                const s=rsvps[p.id];
-                const isMe=p.id===currentUser.id;
-                return(
-                  <div className="rsvp-row" key={p.id} style={{background:isMe?'#f0f9f1':'',borderColor:isMe?'#a5d6a7':''}}>
-                    <div className="rsvp-av" style={{background:p.photo?'transparent':avColor(p.name)}}>{p.photo?<img src={p.photo} alt={p.name}/>:initials(p.name)}</div>
-                    <div className="rsvp-info">
-                      <div className="rsvp-name">{p.name}{isMe&&<span style={{fontSize:'.6rem',color:'#276228',marginLeft:'.4rem',fontWeight:700,letterSpacing:'.04em'}}>YOU</span>}</div>
-                      <div className="rsvp-email">{p.email}</div>
+              :<>
+                {invitedPlayers.map(p=>{
+                  const s=rsvps[p.id];
+                  const isMe=p.id===currentUser.id;
+                  return(
+                    <div className="rsvp-row" key={p.id} style={{background:isMe?'#f0f9f1':'',borderColor:isMe?'#a5d6a7':''}}>
+                      <div className="rsvp-av" style={{background:p.photo?'transparent':avColor(p.name)}}>{p.photo?<img src={p.photo} alt={p.name}/>:initials(p.name)}</div>
+                      <div className="rsvp-info">
+                        <div className="rsvp-name">{p.name}{isMe&&<span style={{fontSize:'.6rem',color:'#276228',marginLeft:'.4rem',fontWeight:700,letterSpacing:'.04em'}}>YOU</span>}</div>
+                        <div className="rsvp-email">{p.email}</div>
+                      </div>
+                      <span className={`badge ${s||'pending'}`}>{s==='yes'?'✅ In':s==='no'?'❌ Out':'⏳ Pending'}</span>
                     </div>
-                    <span className={`badge ${s||'pending'}`}>{s==='yes'?'✅ In':s==='no'?'❌ Out':'⏳ Pending'}</span>
-                  </div>
-                );
-              })
+                  );
+                })}
+                {/* Guest players — anyone can toggle IN/OUT */}
+                {(live.guests||[]).map(g=>{
+                  const totalYes=Object.values(rsvps).filter(r=>r==='yes').length+(live.guests||[]).filter(x=>x.rsvp==='yes').length;
+                  const isFull=totalYes>=4;
+                  return(
+                    <div className="rsvp-row" key={g.id} style={{background:'#fffdf0',borderColor:'#ffd166'}}>
+                      <div className="rsvp-av" style={{background:'#f0ad00',flexShrink:0}}>
+                        {g.name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
+                      </div>
+                      <div className="rsvp-info">
+                        <div className="rsvp-name">{g.name} <span style={{fontSize:'.6rem',background:'#fff3cd',color:'#856404',padding:'1px 6px',borderRadius:10,fontWeight:700,border:'1px solid #ffd166'}}>GUEST</span></div>
+                        <div className="rsvp-email">Temporary player</div>
+                      </div>
+                      <div style={{display:'flex',gap:'.3rem',flexShrink:0}}>
+                        <button onClick={()=>onGuestRsvp(live.id,g.id,'yes')}
+                          disabled={isFull&&g.rsvp!=='yes'}
+                          style={{padding:'.25rem .5rem',border:`1.5px solid ${g.rsvp==='yes'?'#276228':'#ddd'}`,borderRadius:6,background:g.rsvp==='yes'?'#edf7ee':'#fff',color:g.rsvp==='yes'?'#276228':'#555',fontSize:'.72rem',fontWeight:700,cursor:isFull&&g.rsvp!=='yes'?'not-allowed':'pointer',opacity:isFull&&g.rsvp!=='yes'?.5:1}}>
+                          ✅ In
+                        </button>
+                        <button onClick={()=>onGuestRsvp(live.id,g.id,'no')}
+                          style={{padding:'.25rem .5rem',border:`1.5px solid ${g.rsvp==='no'?'#c62828':'#ddd'}`,borderRadius:6,background:g.rsvp==='no'?'#fce8e6':'#fff',color:g.rsvp==='no'?'#c62828':'#555',fontSize:'.72rem',fontWeight:700,cursor:'pointer'}}>
+                          ❌ Out
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             }
           </div>
 
@@ -431,29 +460,36 @@ function BookTeeTime({tee,players,currentUser,onSave,onCancel,toast,isEdit,defau
   const[time,setTime]=useState(tee?.time||'');
   const[notes,setNotes]=useState(tee?.notes||'');
   const allPlayers=players.filter(p=>p.role!=='admin');
-  // Default: all selected for new bookings, existing invites for edits
   const defaultSelected=new Set(isEdit?(tee?.invites||allPlayers.map(p=>p.id)):allPlayers.map(p=>p.id));
   const[selected,setSelected]=useState(defaultSelected);
+  const[guests,setGuests]=useState(tee?.guests||[]);
+  const[guestName,setGuestName]=useState('');
   const[sending,setSending]=useState(false);
 
   const toggle=id=>setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n});
   const selectAll=()=>setSelected(new Set(allPlayers.map(p=>p.id)));
   const clearAll=()=>setSelected(new Set());
 
+  const addGuest=()=>{
+    const name=guestName.trim();
+    if(!name){toast('Enter a guest name.','err');return;}
+    if(guests.find(g=>g.name.toLowerCase()===name.toLowerCase())){toast('Guest already added.','err');return;}
+    setGuests(prev=>[...prev,{id:'guest_'+uid(),name,rsvp:null}]);
+    setGuestName('');
+  };
+  const removeGuest=id=>setGuests(prev=>prev.filter(g=>g.id!==id));
+
   const submit=async()=>{
     if(!course||!date||!time){toast('Please fill in course, date & time.','err');return;}
-    if(selected.size===0){toast('Select at least one player.','err');return;}
+    if(selected.size===0&&guests.length===0){toast('Select at least one player or add a guest.','err');return;}
     const invites=[...selected];
-    const newTee={id:tee?.id||uid(),course,date,time,notes,invites,rsvps:tee?.rsvps||{},
+    const newTee={id:tee?.id||uid(),course,date,time,notes,invites,guests,rsvps:tee?.rsvps||{},
       createdBy:tee?.createdBy||currentUser.id,createdAt:tee?.createdAt||new Date().toISOString()};
     setSending(true);
     if(!isEdit&&isEJSConfigured()){
       const subject=`⛳ Tee Time — ${course} on ${fmtDate(date)}`;
       for(const p of players.filter(p=>selected.has(p.id))){
-        try{
-          const html=buildInviteMsg(newTee,p.name);
-          await sendEJS(p.email,p.name,subject,html);
-        }catch{}
+        try{const html=buildInviteMsg(newTee,p.name);await sendEJS(p.email,p.name,subject,html);}catch{}
       }
     }
     setSending(false);
@@ -479,17 +515,13 @@ function BookTeeTime({tee,players,currentUser,onSave,onCancel,toast,isEdit,defau
               <button onClick={clearAll} style={{background:'none',border:'none',fontSize:'.72rem',color:'var(--text2)',cursor:'pointer',fontFamily:'Syne,sans-serif',fontWeight:600,textDecoration:'underline'}}>None</button>
             </div>
           </div>
-          <p className="hint">
-            {!isEJSConfigured()&&<span style={{color:'#7c5c00'}}>⚠️ Configure EmailJS in ⚙️ Settings to send real emails.</span>}
-          </p>
+          <p className="hint">{!isEJSConfigured()&&<span style={{color:'#7c5c00'}}>⚠️ Configure EmailJS in ⚙️ Settings to send real emails.</span>}</p>
           <div className="player-select-list">
             {allPlayers.map(p=>{
               const sel=selected.has(p.id);
               return(
                 <div key={p.id} className={`ps-item${sel?' selected':''}`} onClick={()=>toggle(p.id)}>
-                  <div className="ps-radio">
-                    <div className="ps-radio-dot"/>
-                  </div>
+                  <div className="ps-radio"><div className="ps-radio-dot"/></div>
                   <div className="ps-av" style={{background:p.photo?'transparent':avColor(p.name)}}>
                     {p.photo?<img src={p.photo} alt={p.name}/>:initials(p.name)}
                   </div>
@@ -503,6 +535,34 @@ function BookTeeTime({tee,players,currentUser,onSave,onCancel,toast,isEdit,defau
           </div>
           <div style={{fontSize:'.72rem',color:'var(--text2)',marginTop:'.5rem',fontWeight:600}}>
             ✓ {selected.size} of {allPlayers.length} player{allPlayers.length!==1?'s':''} selected
+          </div>
+        </div>
+
+        {/* Guest Players */}
+        <div className="isec">
+          <h3>Guest Players <span style={{fontSize:'.72rem',fontWeight:500,color:'var(--text3)',fontFamily:'Syne,sans-serif'}}>— no account needed</span></h3>
+          <p className="hint">Add temporary guests by name only. Anyone can update their status in the app.</p>
+          {guests.length>0&&(
+            <div className="guest-list" style={{marginBottom:'.75rem'}}>
+              {guests.map(g=>(
+                <div className="guest-item" key={g.id}>
+                  <div style={{width:32,height:32,borderRadius:'50%',background:'#f0ad00',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.7rem',fontWeight:700,color:'#fff',flexShrink:0}}>
+                    {g.name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
+                  </div>
+                  <span className="guest-name">{g.name}</span>
+                  <span className="guest-badge">Guest</span>
+                  <button className="guest-remove" onClick={()=>removeGuest(g.id)}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{display:'flex',gap:'.5rem'}}>
+            <input type="text" placeholder="Guest name (e.g. John Smith)" value={guestName}
+              onChange={e=>setGuestName(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter')addGuest()}}
+              style={{flex:1,padding:'.6rem .85rem',border:'1px solid var(--border)',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.86rem',color:'var(--text)',background:'var(--surface)',outline:'none'}}
+            />
+            <button className="btn-s" onClick={addGuest}>+ Add</button>
           </div>
         </div>
 
@@ -975,15 +1035,32 @@ function App(){
     const tee=teeTimes.find(t=>t.id===teeId);
     if(!tee)return;
     const currentRsvps=tee.rsvps||{};
-    const yesCount=Object.values(currentRsvps).filter(r=>r==='yes').length;
+    const guestYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
+    const yesCount=Object.values(currentRsvps).filter(r=>r==='yes').length+guestYes;
     const alreadyIn=currentRsvps[playerId]==='yes';
-    // Block if tee is full and player isn't already in (switching in→in is ok, out/pending→in blocked if full)
     if(answer==='yes'&&!alreadyIn&&yesCount>=MAX_PLAYERS){
       toast(`⛳ Tee time is full (${MAX_PLAYERS}/${MAX_PLAYERS})! Check the next tee time.`,'err');
       return;
     }
     setTeeTimes(prev=>prev.map(t=>t.id===teeId?{...t,rsvps:{...t.rsvps,[playerId]:answer}}:t));
     toast(answer==='yes'?'You\'re IN! ⛳':'Marked as out ❌');
+  };
+
+  const handleGuestRsvp=(teeId,guestId,answer)=>{
+    const tee=teeTimes.find(t=>t.id===teeId);
+    if(!tee)return;
+    const rsvpYes=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length;
+    const guestYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
+    const totalYes=rsvpYes+guestYes;
+    const guest=(tee.guests||[]).find(g=>g.id===guestId);
+    if(answer==='yes'&&guest?.rsvp!=='yes'&&totalYes>=MAX_PLAYERS){
+      toast(`⛳ Tee time is full (${MAX_PLAYERS}/${MAX_PLAYERS})! Check the next tee time.`,'err');
+      return;
+    }
+    setTeeTimes(prev=>prev.map(t=>t.id!==teeId?t:{
+      ...t,guests:(t.guests||[]).map(g=>g.id===guestId?{...g,rsvp:answer}:g)
+    }));
+    toast(answer==='yes'?`${guest?.name} is IN! ⛳`:`${guest?.name} is OUT ❌`);
   };
 
   const handleDelete=id=>{
@@ -1023,6 +1100,8 @@ function App(){
     {id:'history',label:'History'},
   ];
 
+  const TAB_ICONS={dashboard:'🏠',['new-tee']:'📅',calendar:'📆',players:'👥',history:'📋'};
+
   return(
     <>
       <nav className="nav">
@@ -1035,12 +1114,32 @@ function App(){
         </div>
         <div className="nav-right">
           <div className="nav-dot"/>
-          {canManagePlayers&&<button className="nav-gear" onClick={()=>setShowSettings(true)} title="EmailJS Settings">⚙️</button>}
+          {canManagePlayers&&<button className="nav-gear" onClick={()=>setShowSettings(true)} title="Settings">⚙️</button>}
           <div className="nav-avatar-btn" onClick={()=>setTab('profile')}>
             {currentUser.photo?<img src={currentUser.photo} alt={currentUser.name}/>
-              :<div className="av-letter" style={{background:avColor(currentUser.name||''),width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.68rem',fontWeight:700,color:avColor(currentUser.name||''),background:'transparent',borderRadius:'50%',background:avColor(currentUser.name||''),color:'#fff'}}>{initials(currentUser.name||currentUser.email)}</div>}
+              :<div className="av-letter" style={{background:avColor(currentUser.name||''),width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.68rem',fontWeight:700,color:'#fff',borderRadius:'50%'}}>{initials(currentUser.name||currentUser.email)}</div>}
           </div>
         </div>
+      </nav>
+
+      {/* Bottom nav for mobile */}
+      <nav className="bottom-nav">
+        {TABS.map(t=>(
+          <button key={t.id} className={`bnav-item${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>
+            <span className="bnav-icon">{TAB_ICONS[t.id]||'📄'}</span>
+            <span>{t.label}</span>
+            <div className="bnav-dot"/>
+          </button>
+        ))}
+        <button className={`bnav-item${tab==='profile'?' on':''}`} onClick={()=>setTab('profile')}>
+          <span className="bnav-icon">
+            {currentUser.photo
+              ?<img src={currentUser.photo} alt="" style={{width:22,height:22,borderRadius:'50%',objectFit:'cover',border:'1.5px solid var(--border2)'}}/>
+              :<span style={{fontSize:'1.1rem'}}>{initials(currentUser.name||'').slice(0,2)}</span>}
+          </span>
+          <span>Profile</span>
+          <div className="bnav-dot"/>
+        </button>
       </nav>
 
       {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee')}} isAdmin={isAdmin}/>}
@@ -1054,14 +1153,10 @@ function App(){
       {editTee&&tab==='new-tee'&&<BookTeeTime tee={editTee} players={players} currentUser={currentUser} onSave={handleSaveTee} onCancel={()=>{setEditTee(null);setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={true}/>}
 
       {detailTee&&<TeeDetailModal tee={detailTee} teeTimes={teeTimes} players={players} currentUser={currentUser}
-        onClose={()=>setDetailTee(null)} onRsvp={handleRsvp}
+        onClose={()=>setDetailTee(null)} onRsvp={handleRsvp} onGuestRsvp={handleGuestRsvp}
         onEdit={t=>{setDetailTee(null);setEditTee(t);setTab('new-tee')}}
         isAdmin={isAdmin}/>}
       {showSettings&&<SettingsModal onClose={saved=>{setShowSettings(false);if(saved)toast('EmailJS settings saved! ✅')}}/>}
-
-      <button onClick={handleLogout} style={{position:'fixed',bottom:'1.25rem',right:'1.25rem',background:'var(--glass)',border:'1px solid var(--border)',color:'var(--text3)',padding:'.4rem .85rem',borderRadius:'var(--r-pill)',fontFamily:'Syne,sans-serif',fontSize:'.72rem',fontWeight:600,cursor:'pointer',transition:'all .15s',zIndex:100}} onMouseEnter={e=>e.target.style.color='var(--red)'} onMouseLeave={e=>e.target.style.color='var(--text3)'}>
-        Sign Out
-      </button>
 
       <Toast msg={toastMsg} type={toastType}/>
     </>

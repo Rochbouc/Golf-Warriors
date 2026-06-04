@@ -292,15 +292,51 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .pc:hover .pav-edit-hint{opacity:1!important}
 .profile-pic:hover .photo-hover-overlay{opacity:1!important}
 
-/* ── MOBILE ── */
+/* ── GUEST PLAYERS ── */
+.guest-list{display:flex;flex-direction:column;gap:.4rem;margin-top:.5rem}
+.guest-item{display:flex;align-items:center;gap:.75rem;padding:.55rem .75rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-sm)}
+.guest-badge{font-size:.6rem;font-weight:700;background:#fff3cd;color:#856404;padding:2px 7px;border-radius:20px;border:1px solid #ffd166;letter-spacing:.03em;text-transform:uppercase;flex-shrink:0}
+.guest-name{font-size:.85rem;font-weight:600;color:var(--text);flex:1}
+.guest-remove{background:none;border:none;color:var(--text3);cursor:pointer;font-size:.9rem;padding:0;line-height:1;transition:color .15s}
+.guest-remove:hover{color:var(--red)}
+
+
 @media(max-width:900px){.cal-wrap{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+
+/* Bottom nav bar on mobile */
+.bottom-nav{display:none}
 @media(max-width:640px){
-  .nav-tabs .ntab:not(.on){display:none}
-  .page{padding:1.25rem 1rem 5rem}
-  .fcard{padding:1.25rem}
+  .nav-tabs{display:none}
+  .nav{padding:0 1rem}
+  .page{padding:1rem .9rem 6rem}
+  .fcard{padding:1.1rem}
   .tgrid,.pgrid{grid-template-columns:1fr}
   .stats{grid-template-columns:repeat(2,1fr)}
-  .ph h1{font-size:1.9rem}
+  .ph h1{font-size:1.75rem}
   .modal{max-width:100%;border-radius:20px 20px 0 0;position:fixed;bottom:0;left:0;right:0;max-height:92vh}
   .overlay{align-items:flex-end;padding:0}
+
+  /* Bottom nav */
+  .bottom-nav{
+    display:flex;position:fixed;bottom:0;left:0;right:0;z-index:300;
+    background:rgba(255,255,255,.97);backdrop-filter:blur(20px);
+    border-top:1px solid var(--border);
+    padding:0 0 env(safe-area-inset-bottom,0);
+    height:calc(60px + env(safe-area-inset-bottom,0));
+  }
+  .bnav-item{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;border:none;background:transparent;cursor:pointer;
+    font-family:'Syne',sans-serif;font-size:.58rem;font-weight:600;
+    color:var(--text3);letter-spacing:.04em;text-transform:uppercase;
+    padding:.5rem .25rem;transition:color .15s;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .bnav-item.on{color:var(--text)}
+  .bnav-item .bnav-icon{font-size:1.2rem;line-height:1;margin-bottom:1px}
+  .bnav-item .bnav-dot{
+    width:4px;height:4px;border-radius:50%;background:var(--text);
+    margin-top:2px;opacity:0;transition:opacity .15s;
+  }
+  .bnav-item.on .bnav-dot{opacity:1}
 }
