@@ -239,7 +239,7 @@ function Stats({teeTimes,players}){
 }
 
 /* ── TEE CARD ── */
-function TeeCard({tee,players,currentUser,onOpen,onDelete,isAdmin}){
+function TeeCard({tee,players,currentUser,onOpen,onDelete,isAdmin,canManagePlayers}){
   const rsvps=tee.rsvps||{};
   const yesReg=Object.values(rsvps).filter(r=>r==='yes').length;
   const yesGuest=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
@@ -286,7 +286,7 @@ function TeeCard({tee,players,currentUser,onOpen,onDelete,isAdmin}){
       </div>
       <div className="tc-actions" onClick={e=>e.stopPropagation()}>
         <button className="ac-btn grn" onClick={()=>onOpen(tee)}>👥 View Players</button>
-        {(isAdmin||tee.createdBy===currentUser?.id)&&<button className="ac-btn del" onClick={()=>onDelete(tee.id)}>🗑 Delete</button>}
+        {(isAdmin||canManagePlayers||tee.createdBy===currentUser?.id)&&<button className="ac-btn del" onClick={()=>onDelete(tee.id)}>🗑 Delete</button>}
       </div>
     </div>
   );
@@ -297,7 +297,10 @@ function TeeDetailModal({tee,teeTimes,players,currentUser,onClose,onRsvp,onGuest
   if(!tee)return null;
   const live=teeTimes.find(t=>t.id===tee.id)||tee;
   const rsvps=live.rsvps||{};
-  const invitedPlayers=(live.invites||[]).map(id=>players.find(p=>p.id===id)).filter(Boolean);
+  // Use freshest player list from storage so newly added players always appear
+  const freshPlayers=loadPlayers();
+  const allPlayers=[...freshPlayers,...players.filter(p=>!freshPlayers.find(fp=>fp.id===p.id))];
+  const invitedPlayers=(live.invites||[]).map(id=>allPlayers.find(p=>p.id===id)).filter(Boolean);
   const myStatus=rsvps[currentUser.id];
   const canManage=isAdmin||canManagePlayers||live.createdBy===currentUser.id;
   const yesCount=Object.values(rsvps).filter(r=>r==='yes').length+(live.guests||[]).filter(g=>g.rsvp==='yes').length;
@@ -739,7 +742,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
 }
 
 /* ── DASHBOARD ── */
-function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin}){
+function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin,canManagePlayers}){
   const upcoming=teeTimes.filter(isUpcoming);
   return(
     <div className="page">
@@ -756,7 +759,7 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin})
           <p>Be the first to book a tee time!</p>
           <button className="btn-p" onClick={onNew}>Book a Tee Time</button>
         </div>
-        :<div className="tgrid">{upcoming.map(t=><TeeCard key={t.id} tee={t} players={players} currentUser={currentUser} onOpen={onOpen} onDelete={onDelete} isAdmin={isAdmin}/>)}</div>}
+        :<div className="tgrid">{upcoming.map(t=><TeeCard key={t.id} tee={t} players={players} currentUser={currentUser} onOpen={onOpen} onDelete={onDelete} isAdmin={isAdmin} canManagePlayers={canManagePlayers}/>)}</div>}
     </div>
   );
 }
@@ -968,7 +971,7 @@ function App(){
         </button>
       </nav>
 
-      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} isAdmin={isAdmin}/>}
+      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} isAdmin={isAdmin} canManagePlayers={canManagePlayers}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard');}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee');}} onNew={date=>{setEditTee(null);setBookDate(date);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast}/>}
