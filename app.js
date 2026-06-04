@@ -941,7 +941,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
 }
 
 /* ── DASHBOARD ── */
-function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin}){
+function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin,onOpenSettings}){
   const upcoming=teeTimes.filter(isUpcoming);
   return(
     <div className="page">
@@ -949,6 +949,20 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,isAdmin})
         <div className="ph-left"><div className="ph-eyebrow">Golf Tee Time Planner</div><h1>Upcoming Rounds</h1></div>
         <button className="btn-p" onClick={onNew}>+ Book Tee Time</button>
       </div>
+
+      {/* Sync warning — only shown to managers/admins when Firebase not set up */}
+      {isAdmin&&!isFBConfigured()&&(
+        <div style={{background:'#fff8e1',border:'1px solid #ffe082',borderRadius:'var(--r-sm)',padding:'.75rem 1rem',marginBottom:'1.25rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
+          <div style={{fontSize:'.8rem',color:'#7c5c00',lineHeight:1.5}}>
+            <strong>⚠️ Data is not synced across devices.</strong> Tee times only exist on this device.
+            Set up Firebase or use Export/Import in Settings to share data with your phone.
+          </div>
+          <button onClick={onOpenSettings} style={{background:'#f57f17',color:'#fff',border:'none',padding:'.4rem .9rem',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.75rem',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+            ⚙️ Set Up Sync
+          </button>
+        </div>
+      )}
+
       <Stats teeTimes={teeTimes} players={players}/>
       <div className="sec-label">Active Tee Times</div>
       {upcoming.length===0
@@ -1093,6 +1107,53 @@ function SettingsModal({onClose}){
             <div><div className="settings-label">Template ID</div><input className="settings-input" type="text" placeholder="template_xxxxxxx" value={tid} onChange={e=>setTid(e.target.value)}/><div className="settings-hint">Email Templates in EmailJS dashboard</div></div>
           </div>
           {status!=='idle'&&<div className={`settings-status ${status==='testing'?'idle':status}`}>{status==='testing'?'⏳':status==='ok'?'✅':'❌'} {statusMsg}</div>}
+
+          {/* Export / Import — instant cross-device sync without Firebase */}
+          <div style={{marginTop:'1.5rem',paddingTop:'1.5rem',borderTop:'1px solid var(--border)'}}>
+            <div className="settings-label" style={{marginBottom:'.5rem'}}>📤 Export / Import Data</div>
+            <p className="hint" style={{marginBottom:'.75rem'}}>
+              No Firebase yet? Copy your data to another device instantly. <strong>Export</strong> on your desktop → <strong>Import</strong> on your phone.
+            </p>
+            <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+              <button className="btn-s" style={{fontSize:'.78rem'}} onClick={()=>{
+                const data=JSON.stringify({
+                  teeTimes:JSON.parse(localStorage.getItem('gw_tt')||'[]'),
+                  players:JSON.parse(localStorage.getItem('gw_players')||'[]'),
+                  exported:new Date().toISOString()
+                });
+                const blob=new Blob([data],{type:'application/json'});
+                const a=document.createElement('a');
+                a.href=URL.createObjectURL(blob);
+                a.download='golf-warriors-data.json';
+                a.click();
+              }}>📥 Export Data</button>
+              <label className="btn-s" style={{fontSize:'.78rem',cursor:'pointer',display:'flex',alignItems:'center',gap:'.3rem'}}>
+                📤 Import Data
+                <input type="file" accept=".json" style={{display:'none'}} onChange={e=>{
+                  const file=e.target.files[0];if(!file)return;
+                  const reader=new FileReader();
+                  reader.onload=ev=>{
+                    try{
+                      const d=JSON.parse(ev.target.result);
+                      if(d.teeTimes&&Array.isArray(d.teeTimes)){
+                        localStorage.setItem('gw_tt',JSON.stringify(d.teeTimes));
+                      }
+                      if(d.players&&Array.isArray(d.players)){
+                        localStorage.setItem('gw_players',JSON.stringify(d.players));
+                      }
+                      alert('✅ Data imported! The page will reload.');
+                      window.location.reload();
+                    }catch{alert('❌ Invalid file. Make sure you exported from Golf Warriors.');}
+                  };
+                  reader.readAsText(file);
+                }}/>
+              </label>
+            </div>
+            <div className="settings-hint" style={{marginTop:'.5rem'}}>
+              Or set up Firebase above for automatic real-time sync across all devices.
+            </div>
+          </div>
+
           <div style={{display:'flex',gap:'.6rem',justifyContent:'flex-end',marginTop:'1.25rem',paddingTop:'1.1rem',borderTop:'1px solid var(--border)'}}>
             <button className="btn-s" onClick={test} disabled={status==='testing'}>Send Test Email</button>
             <button className="btn-p" onClick={save}>Save Settings</button>
@@ -1311,7 +1372,7 @@ function App(){
         </button>
       </nav>
 
-      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee')}} isAdmin={isAdmin}/>}
+      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee')}} isAdmin={isAdmin} onOpenSettings={()=>setShowSettings(true)}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee')}} onNew={date=>{setEditTee(null);setBookDate(date);setTab('new-tee')}} canManagePlayers={canManagePlayers}/>}
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast}/>}
