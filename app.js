@@ -65,84 +65,27 @@ async function sendEJS(to_email,to_name,subject,message){
 function buildInviteMsg(tee,recipientName){
   const appUrl=getAppUrl();
   const teeUrl=`${appUrl}?open=${tee.id}`;
-  const notesRow=tee.notes?`
-        <tr>
-          <td colspan="2" style="padding:8px 0 0">
-            <div style="background:#f0f0ee;border-radius:6px;padding:10px 14px;font-size:13px;color:#555;line-height:1.5;border-left:3px solid #ccc">
-              <strong style="color:#333">Notes:</strong> ${tee.notes}
-            </div>
-          </td>
-        </tr>`:'';
-  return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-<body style="margin:0;padding:0;background:#f4f4f2;font-family:'Segoe UI',Helvetica,Arial,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f2;padding:40px 16px">
-<tr><td align="center">
-<table width="100%" style="max-width:540px">
-  <!-- Logo -->
-  <tr><td align="center" style="padding-bottom:20px">
-    <span style="font-size:26px">&#9971;</span>
-    <span style="font-family:Georgia,serif;font-size:21px;font-weight:700;color:#111;letter-spacing:.5px;margin-left:8px;vertical-align:middle">Golf Warriors</span>
-  </td></tr>
-  <!-- Main card -->
-  <tr><td style="background:#ffffff;border-radius:16px;border:1px solid #e4e4e2;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.06)">
-    <!-- Header bar -->
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="background:#111;padding:24px 32px">
-        <p style="margin:0 0 3px;color:rgba(255,255,255,.45);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase">Tee Time Invitation</p>
-        <h1 style="margin:0;color:#fff;font-family:Georgia,serif;font-size:22px;font-weight:700">${tee.course}</h1>
-      </td></tr>
-    </table>
-    <!-- Body -->
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="padding:28px 32px 28px">
-        <p style="margin:0 0 16px;font-size:16px;color:#111">Hi <strong>${recipientName}</strong>,</p>
-        <p style="margin:0 0 20px;font-size:14px;color:#555;line-height:1.7">You've been invited to a golf round. Here are the details:</p>
-        <!-- Details box -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f5;border-radius:10px;border:1px solid #e4e4e2;margin-bottom:24px">
-          <tr><td style="padding:18px 22px">
-            <table cellpadding="0" cellspacing="0" style="width:100%">
-              <tr>
-                <td style="padding:5px 0;font-size:12px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.8px;width:70px">Date</td>
-                <td style="padding:5px 0;font-size:15px;font-weight:700;color:#111">${fmtDate(tee.date)}</td>
-              </tr>
-              <tr>
-                <td style="padding:5px 0;font-size:12px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.8px">Time</td>
-                <td style="padding:5px 0;font-size:15px;font-weight:700;color:#111">${fmtTime(tee.time)}</td>
-              </tr>
-              ${notesRow}
-            </table>
-          </td></tr>
-        </table>
-        <!-- Single CTA -->
-        <table width="100%" cellpadding="0" cellspacing="0">
-          <tr><td align="center">
-            <a href="${teeUrl}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:16px 44px;border-radius:10px;letter-spacing:.3px">
-              View Tee Time &amp; Update Status &#8594;
-            </a>
-          </td></tr>
-        </table>
-        <!-- Website link -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px">
-          <tr><td style="background:#f7f7f5;border-radius:8px;border:1px solid #e4e4e2;padding:12px 16px;text-align:center">
-            <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:1px">App Website</p>
-            <a href="${appUrl}" style="font-size:13px;color:#111;text-decoration:underline;font-weight:600;word-break:break-all">${appUrl}</a>
-          </td></tr>
-        </table>
-        <p style="margin:12px 0 0;font-size:12px;color:#aaa;text-align:center;line-height:1.6">
-          Log in to the app to confirm whether you're <strong style="color:#276228">IN</strong> or <strong style="color:#c62828">OUT</strong>.
-        </p>
-      </td></tr>
-    </table>
-  </td></tr>
-  <!-- Footer -->
-  <tr><td align="center" style="padding:20px 0">
-    <p style="margin:0;font-size:12px;color:#aaa">Golf Warriors &middot; Tee Time Planner</p>
-  </td></tr>
-</table>
-</td></tr></table>
-</body></html>`;
+  const notes=tee.notes?`\nNotes:    ${tee.notes}`:'';
+  return `Hi ${recipientName},
+
+You've been invited to a golf round at Golf Warriors!
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+  ${tee.course}
+━━━━━━━━━━━━━━━━━━━━━━━━
+  Date:     ${fmtDate(tee.date)}
+  Time:     ${fmtTime(tee.time)}${notes}
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+Log in to the app to confirm if you are IN or OUT:
+
+  ${teeUrl}
+
+You can also visit the app directly at:
+  ${appUrl}
+
+See you on the fairway!
+— Golf Warriors`;
 }
 
 
@@ -544,11 +487,13 @@ function BookTeeTime({tee,players,currentUser,onSave,onCancel,toast,isEdit,defau
               const sel=selected.has(p.id);
               return(
                 <div key={p.id} className={`ps-item${sel?' selected':''}`} onClick={()=>toggle(p.id)}>
-                  <div className="ps-check">{sel&&'✓'}</div>
+                  <div className="ps-radio">
+                    <div className="ps-radio-dot"/>
+                  </div>
                   <div className="ps-av" style={{background:p.photo?'transparent':avColor(p.name)}}>
                     {p.photo?<img src={p.photo} alt={p.name}/>:initials(p.name)}
                   </div>
-                  <div style={{flex:1}}>
+                  <div className="ps-info">
                     <div className="ps-name">{p.name}</div>
                     <div className="ps-email">{p.email}</div>
                   </div>
@@ -911,7 +856,7 @@ function SettingsModal({onClose}){
     if(!pk||!sid||!tid){setStatus('bad');setStatusMsg('Fill all three EmailJS fields first.');return;}
     setStatus('testing');setStatusMsg('Sending test…');
     try{
-      await emailjs.send(sid.trim(),tid.trim(),{to_email:'test@example.com',to_name:'Test Player',subject:'⛳ Golf Warriors — Test Email',message:'<p style="font-family:Arial,sans-serif;font-size:16px;color:#111">This is a <strong>test email</strong> from Golf Warriors. EmailJS is configured correctly! ✅</p>',app_name:'Golf Warriors'},{publicKey:pk.trim()});
+      await emailjs.send(sid.trim(),tid.trim(),{to_email:'test@example.com',to_name:'Test Player',subject:'⛳ Golf Warriors — Test Email',message:'Hi Test Player,\n\nThis is a test email from Golf Warriors.\n\nEmailJS is configured correctly!\n\n— Golf Warriors',app_name:'Golf Warriors'},{publicKey:pk.trim()});
       setStatus('ok');setStatusMsg('Connected! Test email sent. ✅');
     }catch(e){setStatus('bad');setStatusMsg('Failed: '+(e?.text||e?.message||'Check your credentials.'))}
   };
@@ -951,7 +896,7 @@ function SettingsModal({onClose}){
               Sign up at <a href="https://www.emailjs.com" target="_blank" style={{color:'var(--text)',textDecoration:'underline'}}>emailjs.com</a> (free — 200 emails/month).
               Create a template with <strong>To</strong>: <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4,fontSize:'.72rem'}}>{'{{to_email}}'}</code>,
               <strong> Subject</strong>: <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4,fontSize:'.72rem'}}>{'{{subject}}'}</code>,
-              <strong> Content/Body</strong>: <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4,fontSize:'.72rem'}}>{'{{message}}'}</code> — and <strong>enable HTML mode</strong> in the template editor.
+              <strong> Content/Body</strong>: <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4,fontSize:'.72rem'}}>{'{{message}}'}</code> — leave as plain text (do <strong>not</strong> enable HTML mode).
             </p>
           </div>
           <div className="settings-row">
