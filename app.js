@@ -33,26 +33,6 @@ const isUpcoming=tee=>{
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 /* ── STORAGE ── */
-function loadPlayers(){
-  const s=localStorage.getItem('gw_players');
-  if(s){
-    let existing=JSON.parse(s);
-    // Migrate: fix legacy golf123 passwords → golf
-    existing=existing.map(p=>p.password==='golf123'?{...p,password:'golf'}:p);
-    // Re-seed if new players (Roch/Lagace) are missing
-    const hasSeed=existing.find(p=>p.id==='p9');
-    if(!hasSeed){
-      const merged=[...existing.filter(p=>!['p9','p10'].includes(p.id)),...SEED_PLAYERS.filter(p=>['p9','p10'].includes(p.id))];
-      localStorage.setItem('gw_players',JSON.stringify(merged));
-      return merged;
-    }
-    localStorage.setItem('gw_players',JSON.stringify(existing));
-    return existing;
-  }
-  const all=[ADMIN,...SEED_PLAYERS];
-  localStorage.setItem('gw_players',JSON.stringify(all));
-  return all;
-}
 /* ── FIREBASE CONFIG ── */
 function getFBConfig(){return JSON.parse(localStorage.getItem('gw_fb')||'null')}
 function isFBConfigured(){const c=getFBConfig();return !!(c&&c.databaseURL)}
@@ -1157,22 +1137,22 @@ function App(){
   useEffect(()=>{saveTeeTimes(teeTimes)},[teeTimes]);
   useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session')},[currentUser]);
 
-  // Firebase real-time sync — pull latest data from cloud on load and listen for changes
+  // Firebase real-time sync — optional, app works without it
   useEffect(()=>{
-    let unsubTT=()=>{},unsubPl=()=>{};
-    if(isFBConfigured()){
-      // Initial pull
-      fbRead('teeTimes').then(data=>{if(data&&Array.isArray(data)){localStorage.setItem('gw_tt',JSON.stringify(data));setTeeTimes(data);}});
-      fbRead('players').then(data=>{if(data&&Array.isArray(data)){localStorage.setItem('gw_players',JSON.stringify(data));setPlayers(data);}});
-      // Live listener for tee times (RSVPs update in real time)
+    let unsubTT=()=>{};
+    if(!isFBConfigured())return;
+    try{
+      fbRead('teeTimes').then(data=>{
+        if(data&&Array.isArray(data)){localStorage.setItem('gw_tt',JSON.stringify(data));setTeeTimes(data);}
+      }).catch(()=>{});
+      fbRead('players').then(data=>{
+        if(data&&Array.isArray(data)){localStorage.setItem('gw_players',JSON.stringify(data));setPlayers(data);}
+      }).catch(()=>{});
       fbOnValue('teeTimes',data=>{
-        if(data&&Array.isArray(data)){
-          localStorage.setItem('gw_tt',JSON.stringify(data));
-          setTeeTimes(data);
-        }
-      }).then(fn=>{unsubTT=fn;});
-    }
-    return()=>{unsubTT();unsubPl();};
+        if(data&&Array.isArray(data)){localStorage.setItem('gw_tt',JSON.stringify(data));setTeeTimes(data);}
+      }).then(fn=>{unsubTT=fn;}).catch(()=>{});
+    }catch(e){console.warn('Firebase sync error',e);}
+    return()=>{try{unsubTT();}catch{}};
   },[]);
 
   // Auto-delete past tee times (4-hour grace so they don't vanish mid-round)
