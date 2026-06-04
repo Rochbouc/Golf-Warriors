@@ -1141,6 +1141,15 @@ function App(){
             {currentUser.photo?<img src={currentUser.photo} alt={currentUser.name}/>
               :<div className="av-letter" style={{background:avColor(currentUser.name||''),width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.68rem',fontWeight:700,color:'#fff',borderRadius:'50%'}}>{initials(currentUser.name||currentUser.email)}</div>}
           </div>
+          <button onClick={handleLogout}
+            style={{background:'transparent',border:'1px solid #d0d0ce',color:'#999',
+              padding:'.35rem .8rem',borderRadius:20,fontFamily:'Syne,sans-serif',
+              fontSize:'.68rem',fontWeight:600,cursor:'pointer',whiteSpace:'nowrap',
+              transition:'all .15s'}}
+            onMouseEnter={e=>{e.currentTarget.style.color='#d93025';e.currentTarget.style.borderColor='#ef9a9a'}}
+            onMouseLeave={e=>{e.currentTarget.style.color='#999';e.currentTarget.style.borderColor='#d0d0ce'}}>
+            Sign Out
+          </button>
         </div>
       </nav>
 
@@ -1156,11 +1165,17 @@ function App(){
         <button className={`bnav-item${tab==='profile'?' on':''}`} onClick={()=>setTab('profile')}>
           <span className="bnav-icon">
             {currentUser.photo
-              ?<img src={currentUser.photo} alt="" style={{width:22,height:22,borderRadius:'50%',objectFit:'cover',border:'1.5px solid var(--border2)'}}/>
+              ?<img src={currentUser.photo} alt="" style={{width:22,height:22,borderRadius:'50%',objectFit:'cover',border:'1.5px solid #d0d0ce'}}/>
               :<span style={{fontSize:'1.1rem'}}>{initials(currentUser.name||'').slice(0,2)}</span>}
           </span>
           <span>Profile</span>
           <div className="bnav-dot"/>
+        </button>
+        <button className="bnav-item" onClick={handleLogout}
+          style={{color:'#d93025'}}>
+          <span className="bnav-icon">🚪</span>
+          <span>Sign Out</span>
+          <div className="bnav-dot" style={{background:'#d93025'}}/>
         </button>
       </nav>
 
@@ -1170,18 +1185,6 @@ function App(){
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast}/>}
       {tab==='history'&&<History teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} isAdmin={isAdmin}/>}
       {tab==='profile'&&<ProfilePage currentUser={currentUser} onUpdate={handleUpdateUser} onLogout={handleLogout} toast={toast}/>}
-
-      {/* Desktop floating sign-out (hidden on mobile — use Profile page instead) */}
-      <button onClick={handleLogout}
-        style={{position:'fixed',bottom:'1.25rem',right:'1.25rem',background:'#fff',border:'1px solid var(--border)',
-          color:'var(--text3)',padding:'.4rem .9rem',borderRadius:'var(--r-pill)',
-          fontFamily:'Syne,sans-serif',fontSize:'.72rem',fontWeight:600,cursor:'pointer',
-          transition:'all .15s',zIndex:100,boxShadow:'var(--sh)'}}
-        onMouseEnter={e=>{e.currentTarget.style.color='var(--red)';e.currentTarget.style.borderColor='#ef9a9a'}}
-        onMouseLeave={e=>{e.currentTarget.style.color='var(--text3)';e.currentTarget.style.borderColor='var(--border)'}}
-        className="desktop-signout">
-        Sign Out
-      </button>
 
       {/* Edit tee time */}
       {editTee&&tab==='new-tee'&&<BookTeeTime tee={editTee} players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setEditTee(null);setBookDate(null);setTab('dashboard')}} toast={toast} isEdit={true}/>}
