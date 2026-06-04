@@ -421,9 +421,10 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
   // Auto-select any new players added while this form is open
   useEffect(()=>{
     if(!isEdit){
+      const fresh=loadPlayers().filter(p=>p.role!=='admin');
       setSelected(prev=>{
         const n=new Set(prev);
-        players.filter(p=>p.role!=='admin').forEach(p=>n.add(p.id));
+        fresh.forEach(p=>n.add(p.id));
         return n;
       });
     }
@@ -444,16 +445,16 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
 
     if(isEJSConfigured()){
       const subject=`⛳ Tee Time — ${course} on ${fmtDate(date)}`;
-      // New booking → email all selected players
-      // Edit → only email players newly added to this tee time
+      // Always reload players fresh from storage to catch anyone added mid-session
+      const freshPlayers=loadPlayers();
       const prevInvites=new Set(tee?.invites||[]);
       const toEmail=isEdit
-        ? players.filter(p=>selected.has(p.id)&&!prevInvites.has(p.id))  // newly added only
-        : players.filter(p=>selected.has(p.id));   // all selected including creator
+        ? freshPlayers.filter(p=>selected.has(p.id)&&!prevInvites.has(p.id))  // newly added only
+        : freshPlayers.filter(p=>selected.has(p.id));                           // all selected
       let ok=0,fail=0;
       for(const p of toEmail){
         try{await sendEJS(p.email,p.name,subject,buildInviteMsg(newTee,p.name));ok++;}
-        catch(e){fail++;console.warn('Email failed for',p.email,e);}
+        catch(e){fail++;console.warn('Email failed for',p.name,p.email,e);}
       }
       setSending(false);
       onSave(newTee,invites);
