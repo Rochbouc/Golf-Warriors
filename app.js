@@ -53,9 +53,76 @@ function loadPlayers(){
   localStorage.setItem('gw_players',JSON.stringify(all));
   return all;
 }
-function savePlayers(p){localStorage.setItem('gw_players',JSON.stringify(p))}
+/* ── FIREBASE CONFIG ── */
+function getFBConfig(){return JSON.parse(localStorage.getItem('gw_fb')||'null')}
+function isFBConfigured(){const c=getFBConfig();return !!(c&&c.databaseURL)}
+
+let _fbApp=null,_fbDb=null;
+async function getFBDb(){
+  if(_fbDb)return _fbDb;
+  const cfg=getFBConfig();
+  if(!cfg||!cfg.databaseURL)return null;
+  try{
+    if(!window.firebase){
+      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js');
+    }
+    if(!_fbApp){
+      _fbApp=window.firebase.apps.length?window.firebase.apps[0]:window.firebase.initializeApp(cfg);
+    }
+    _fbDb=window.firebase.database(_fbApp);
+    return _fbDb;
+  }catch(e){console.warn('Firebase init failed',e);return null;}
+}
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)){res();return;}
+    const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);
+  });
+}
+async function fbRead(path){
+  const db=await getFBDb();if(!db)return null;
+  const snap=await db.ref(path).get();
+  return snap.exists()?snap.val():null;
+}
+async function fbWrite(path,data){
+  const db=await getFBDb();if(!db)return false;
+  await db.ref(path).set(data);return true;
+}
+async function fbOnValue(path,cb){
+  const db=await getFBDb();if(!db)return ()=>{};
+  const ref=db.ref(path);ref.on('value',snap=>cb(snap.exists()?snap.val():null));
+  return()=>ref.off('value');
+}
+
+/* ── STORAGE ── */
+function loadPlayers(){
+  const s=localStorage.getItem('gw_players');
+  if(s){
+    let existing=JSON.parse(s);
+    existing=existing.map(p=>p.password==='golf123'?{...p,password:'golf'}:p);
+    const hasSeed=existing.find(p=>p.id==='p9');
+    if(!hasSeed){
+      const merged=[...existing.filter(p=>!['p9','p10'].includes(p.id)),...SEED_PLAYERS.filter(p=>['p9','p10'].includes(p.id))];
+      localStorage.setItem('gw_players',JSON.stringify(merged));
+      return merged;
+    }
+    localStorage.setItem('gw_players',JSON.stringify(existing));
+    return existing;
+  }
+  const all=[ADMIN,...SEED_PLAYERS];
+  localStorage.setItem('gw_players',JSON.stringify(all));
+  return all;
+}
+function savePlayers(p){
+  localStorage.setItem('gw_players',JSON.stringify(p));
+  fbWrite('players',p).catch(()=>{});
+}
 function loadTeeTimes(){return JSON.parse(localStorage.getItem('gw_tt')||'[]')}
-function saveTeeTimes(t){localStorage.setItem('gw_tt',JSON.stringify(t))}
+function saveTeeTimes(t){
+  localStorage.setItem('gw_tt',JSON.stringify(t));
+  fbWrite('teeTimes',t).catch(()=>{});
+}
 function getEJSConfig(){return JSON.parse(localStorage.getItem('ejs_cfg')||'{"publicKey":"","serviceId":"","templateId":"","appUrl":""}')}
 function isEJSConfigured(){const c=getEJSConfig();return !!(c.publicKey&&c.serviceId&&c.templateId)}
 function getAppUrl(){
@@ -933,14 +1000,33 @@ function History({teeTimes,players,currentUser,onOpen,isAdmin}){
 /* ── SETTINGS MODAL ── */
 function SettingsModal({onClose}){
   const saved=getEJSConfig();
+  const savedFB=getFBConfig()||{};
   const[pk,setPk]=useState(saved.publicKey||'');
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
+  const[fbUrl,setFbUrl]=useState(savedFB.databaseURL||'');
+  const[fbApiKey,setFbApiKey]=useState(savedFB.apiKey||'');
+  const[fbProject,setFbProject]=useState(savedFB.projectId||'');
+  const[fbStatus,setFbStatus]=useState('idle');
   const[status,setStatus]=useState('idle');const[statusMsg,setStatusMsg]=useState('');
   const save=()=>{
     localStorage.setItem('ejs_cfg',JSON.stringify({publicKey:pk.trim(),serviceId:sid.trim(),templateId:tid.trim(),appUrl:appUrl.trim()}));
+    if(fbUrl.trim()){localStorage.setItem('gw_fb',JSON.stringify({apiKey:fbApiKey.trim(),databaseURL:fbUrl.trim(),projectId:fbProject.trim()}));}
     onClose(true);
+  };
+  const testFB=async()=>{
+    if(!fbUrl){setFbStatus('bad');return;}
+    setFbStatus('testing');
+    try{
+      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js');
+      const cfgObj={apiKey:fbApiKey.trim(),databaseURL:fbUrl.trim(),projectId:fbProject.trim()};
+      const app=window.firebase.apps.length?window.firebase.apps[0]:window.firebase.initializeApp(cfgObj);
+      const db=window.firebase.database(app);
+      await db.ref('_ping').set(Date.now());
+      setFbStatus('ok');
+    }catch(e){setFbStatus('bad');console.error(e);}
   };
   const test=async()=>{
     if(!pk||!sid||!tid){setStatus('bad');setStatusMsg('Fill all three EmailJS fields first.');return;}
@@ -955,6 +1041,38 @@ function SettingsModal({onClose}){
       <div className="modal" style={{maxWidth:520}}>
         <div className="modal-head"><h2>⚙️ Settings</h2><button className="modal-x" onClick={()=>onClose(false)}>✕</button></div>
         <div className="modal-body">
+
+          {/* Firebase Sync */}
+          <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
+              <div className="settings-label" style={{margin:0}}>🔥 Firebase — Cloud Sync</div>
+              {fbUrl&&<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>}
+            </div>
+            <p className="hint" style={{marginBottom:'.75rem'}}>
+              <strong>Required</strong> so all players see the same tee times and RSVPs across every device. Free setup (~3 min): <a href="https://console.firebase.google.com" target="_blank" style={{color:'var(--text)',fontWeight:600}}>console.firebase.google.com</a> → New project → Realtime Database → Create (test mode).
+            </p>
+            <div style={{display:'flex',flexDirection:'column',gap:'.6rem'}}>
+              <div>
+                <div className="settings-label">Database URL</div>
+                <input className="settings-input" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com" value={fbUrl} onChange={e=>setFbUrl(e.target.value)}/>
+                <div className="settings-hint">Firebase Console → Realtime Database → Data tab (URL at the top)</div>
+              </div>
+              <div>
+                <div className="settings-label">Web API Key</div>
+                <input className="settings-input" type="text" placeholder="AIzaSy..." value={fbApiKey} onChange={e=>setFbApiKey(e.target.value)}/>
+                <div className="settings-hint">Firebase Console → Project Settings → General → Web API Key</div>
+              </div>
+              <div>
+                <div className="settings-label">Project ID</div>
+                <input className="settings-input" type="text" placeholder="your-project-id" value={fbProject} onChange={e=>setFbProject(e.target.value)}/>
+                <div className="settings-hint">Firebase Console → Project Settings → General → Project ID</div>
+              </div>
+            </div>
+            {fbStatus!=='idle'&&<div className={`settings-status ${fbStatus==='testing'?'idle':fbStatus==='ok'?'ok':'bad'}`} style={{marginTop:'.6rem'}}>
+              {fbStatus==='testing'?'⏳ Connecting…':fbStatus==='ok'?'✅ Firebase connected! All devices will now sync.':'❌ Failed. Check your Database URL and API key.'}
+            </div>}
+            <button className="btn-s" style={{marginTop:'.7rem',fontSize:'.75rem'}} onClick={testFB} disabled={fbStatus==='testing'}>Test Firebase Connection</button>
+          </div>
 
           {/* App URL */}
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
@@ -1038,6 +1156,24 @@ function App(){
 
   useEffect(()=>{saveTeeTimes(teeTimes)},[teeTimes]);
   useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session')},[currentUser]);
+
+  // Firebase real-time sync — pull latest data from cloud on load and listen for changes
+  useEffect(()=>{
+    let unsubTT=()=>{},unsubPl=()=>{};
+    if(isFBConfigured()){
+      // Initial pull
+      fbRead('teeTimes').then(data=>{if(data&&Array.isArray(data)){localStorage.setItem('gw_tt',JSON.stringify(data));setTeeTimes(data);}});
+      fbRead('players').then(data=>{if(data&&Array.isArray(data)){localStorage.setItem('gw_players',JSON.stringify(data));setPlayers(data);}});
+      // Live listener for tee times (RSVPs update in real time)
+      fbOnValue('teeTimes',data=>{
+        if(data&&Array.isArray(data)){
+          localStorage.setItem('gw_tt',JSON.stringify(data));
+          setTeeTimes(data);
+        }
+      }).then(fn=>{unsubTT=fn;});
+    }
+    return()=>{unsubTT();unsubPl();};
+  },[]);
 
   // Auto-delete past tee times (4-hour grace so they don't vanish mid-round)
   useEffect(()=>{
