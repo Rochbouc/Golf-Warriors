@@ -54,14 +54,13 @@ Once live, open the app and click **⚙️ Settings** (top nav, admin only):
 | Admin | admin@golfwarriors.com | golf | Admin |
 | Roch Boucher | boucher.roch@gmail.com | golf | Manager |
 | Stéphane Lagacé | stephane.lagace@gmail.com | golf | Manager |
-| Chris Leger | legerchris83@gmail.com | golf | Player |
 | Jules Melanson | jules_18melanson@hotmail.com | golf | Player |
 | Stef Audet | stephane.france@rogers.com | golf | Player |
 | PP | pierrepaul.lanteigne@gmail.com | golf | Player |
 | Dr Rhé | rheal.boudreau@hotmail.com | golf | Player |
 | Dave | divadocan@gmail.com | golf | Player |
 | Marc LeBlanc | marc@jomaeng.com | golf | Player |
-| Lagace | stefgolf72@gmail.com | golf | Player |
+
 
 > All players should change their password after first login under **Profile**.
 
