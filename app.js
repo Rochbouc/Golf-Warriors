@@ -685,6 +685,23 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManage
         <button className="btn-p" onClick={onNew}>+ Book Tee Time</button>
       </div>
       <Stats teeTimes={teeTimes} players={players}/>
+
+      {/* One-time sync push — only shown once until pushed */}
+      {canManagePlayers&&isSyncConfigured()&&!localStorage.getItem('gw_pushed')&&(
+        <div style={{background:'#fff8e1',border:'1px solid #ffe082',borderRadius:'var(--r-sm)',padding:'.75rem 1rem',marginBottom:'1rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
+          <div style={{fontSize:'.8rem',color:'#7c5c00',lineHeight:1.5}}>
+            ☁️ <strong>First time setup:</strong> Push your data to the cloud so all phones sync.
+          </div>
+          <button onClick={async()=>{
+            const ok=await syncWrite({teeTimes,players,updated:Date.now()});
+            if(ok){localStorage.setItem('gw_pushed','1');alert('✅ Done! All phones will now sync automatically.');}
+            else alert('❌ Push failed. Check your internet connection.');
+          }} style={{background:'#f57f17',color:'#fff',border:'none',padding:'.4rem .9rem',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.75rem',fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+            Push Now
+          </button>
+        </div>
+      )}
+
       <div className="sec-label">Active Tee Times</div>
       {upcoming.length===0
         ?<div className="empty"><div className="empty-ico">🏌️</div><h2>No upcoming rounds</h2><p>Be the first to book a tee time!</p><button className="btn-p" onClick={onNew}>Book a Tee Time</button></div>
