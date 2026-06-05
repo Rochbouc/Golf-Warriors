@@ -107,6 +107,7 @@ function saveTeeTimes(t){
 async function pushSync(teeTimes,players){
   if(isJBConfigured())await syncSave(teeTimes,players);
 }
+function loadTeeTimes(){
   const s=localStorage.getItem('gw_tt');
   if(s){const t=JSON.parse(s);if(t.length)return t;}
   localStorage.setItem('gw_tt',JSON.stringify(SEED_TEETIMES));
