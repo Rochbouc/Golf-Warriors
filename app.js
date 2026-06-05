@@ -106,7 +106,10 @@ function getEJSConfig(){return JSON.parse(localStorage.getItem('ejs_cfg')||'{"pu
 function isEJSConfigured(){const c=getEJSConfig();return !!(c.publicKey&&c.serviceId&&c.templateId);}
 function getAppUrl(){const cfg=getEJSConfig();if(cfg.appUrl&&cfg.appUrl.trim())return cfg.appUrl.trim();const loc=window.location.href.split('?')[0].split('#')[0];return loc.startsWith('file://')?'https://your-app.github.io':loc;}
 async function sendEJS(to,name,subj,msg){const c=getEJSConfig();if(!c.publicKey)throw new Error('not configured');return emailjs.send(c.serviceId,c.templateId,{to_email:to,to_name:name,subject:subj,message:msg,app_name:'Golf Warriors'},{publicKey:c.publicKey});}
-function buildInviteMsg(tee,name){const u=getAppUrl();const notes=tee.notes?`\nNotes:    ${tee.notes}`:'';return`Hi ${name},\n\nYou've been invited to a golf round at Golf Warriors!\n\n━━━━━━━━━━━━━━━━━━━━━━\n  ${tee.course}\n━━━━━━━━━━━━━━━━━━━━━━\n  Date:  ${fmtDate(tee.date)}\n  Time:  ${fmtTime(tee.time)}${notes}\n━━━━━━━━━━━━━━━━━━━━━━\n\nLog in to confirm IN or OUT:\n  ${u}?open=${tee.id}\n\nApp: ${u}\n\n— Golf Warriors`;}
+function buildInviteMsg(tee,name){
+  const notes=tee.notes?`\nNotes:    ${tee.notes}`:'';
+  return`Hi ${name},\n\nYou've been invited to a golf round at Golf Warriors!\n\n━━━━━━━━━━━━━━━━━━━━━━\n  ${tee.course}\n━━━━━━━━━━━━━━━━━━━━━━\n  Date:  ${fmtDate(tee.date)}\n  Time:  ${fmtTime(tee.time)}${notes}\n━━━━━━━━━━━━━━━━━━━━━━\n\nLog in to the app to confirm IN or OUT:\n  https://rochbouc.github.io/Golf-Warriors?v=2\n\n— Golf Warriors`;
+}
 
 /* ── UI HELPERS ── */
 function Av({player,size=28}){
@@ -213,7 +216,7 @@ function ProfilePage({currentUser,onUpdate,onLogout,toast}){
         </div>
         <div className="fgrid">
           <div className="fg"><label>Full Name</label><input type="text" value={name} onChange={e=>setName(e.target.value)}/></div>
-          <div className="fg"><label>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+          <div className="fg"><label>Email</label><input type="email" value={email} readOnly style={{background:'var(--bg2)',color:'var(--text3)',cursor:'not-allowed'}}/></div>
           <div className="fg"><label>New Password</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Leave blank to keep current"/></div>
           <div className="fg"><label>Confirm Password</label><input type="password" value={pass2} onChange={e=>setPass2(e.target.value)} placeholder="Re-enter new password"/></div>
         </div>
@@ -572,7 +575,7 @@ function PlayerEditModal({player,players,onSave,onDelete,onClose,toast}){
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:'.9rem'}}>
             <div className="fg"><label>Full Name</label><input type="text" value={name} onChange={e=>setName(e.target.value)}/></div>
-            <div className="fg"><label>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+            <div className="fg"><label>Email</label><input type="email" value={email} readOnly style={{background:'var(--bg2)',color:'var(--text3)',cursor:'not-allowed'}}/></div>
             <div className="fg"><label>New Password</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Leave blank to keep current"/></div>
           </div>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:'1.5rem',paddingTop:'1.25rem',borderTop:'1px solid var(--border)'}}>
