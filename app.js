@@ -48,8 +48,8 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 /* ─────────────────────────────────────────
    GITHUB GIST SYNC — auto-configured
    ───────────────────────────────────────── */
-const GIST_ID    = '';   // filled in by Settings
-const GIST_TOKEN = '';   // filled in by Settings
+const GIST_ID    = '1e52836898f813e73ab344fbecb2b34f';
+const GIST_TOKEN = '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';
 
 function getSyncConfig(){
   const saved=JSON.parse(localStorage.getItem('gw_sync')||'{"gistId":"","token":""}');
@@ -709,28 +709,15 @@ function History({teeTimes,players,currentUser,onOpen}){
 /* ── SETTINGS MODAL ── */
 function SettingsModal({onClose}){
   const saved=getEJSConfig();
-  const savedSync=getSyncConfig();
   const[pk,setPk]=useState(saved.publicKey||'');
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
-  const[syncGistId,setSyncGistId]=useState(savedSync.binId||'');
-  const[syncToken,setSyncToken]=useState(savedSync.apiKey||'');
-  const[syncStatus,setSyncStatus]=useState('idle');
   const[ejsStatus,setEjsStatus]=useState('idle');
   const[ejsMsg,setEjsMsg]=useState('');
   const save=()=>{
     localStorage.setItem('ejs_cfg',JSON.stringify({publicKey:pk.trim(),serviceId:sid.trim(),templateId:tid.trim(),appUrl:appUrl.trim()}));
-    if(syncGistId.trim()&&syncToken.trim())localStorage.setItem('gw_sync',JSON.stringify({gistId:syncGistId.trim(),token:syncToken.trim()}));
     onClose(true);
-  };
-  const testSync=async()=>{
-    if(!syncGistId||!syncToken){setSyncStatus('bad');return;}
-    setSyncStatus('testing');
-    try{
-      const r=await fetch(`https://api.github.com/gists/${syncGistId.trim()}`,{headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+syncToken.trim()}});
-      r.ok?setSyncStatus('ok'):setSyncStatus('bad');
-    }catch{setSyncStatus('bad');}
   };
   const testEJS=async()=>{
     if(!pk||!sid||!tid){setEjsStatus('bad');setEjsMsg('Fill all three fields first.');return;}
@@ -743,19 +730,6 @@ function SettingsModal({onClose}){
       <div className="modal" style={{maxWidth:500}}>
         <div className="modal-head"><h2>⚙️ Settings</h2><button className="modal-x" onClick={()=>onClose(false)}>✕</button></div>
         <div className="modal-body">
-
-          <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
-              <div className="settings-label" style={{margin:0}}>☁️ Cloud Sync</div>
-              {syncGistId&&syncToken?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>:<span style={{fontSize:'.65rem',fontWeight:700,background:'#fff3cd',color:'#856404',padding:'2px 8px',borderRadius:20}}>⚠️ Not set</span>}
-            </div>
-            <p className="hint" style={{marginBottom:'.75rem'}}><strong>Required so all phones see the same data.</strong> Free: <a href="https://jsonbin.io" target="_blank" style={{color:'var(--text)',fontWeight:600,textDecoration:'underline'}}>gist.github.com</a> — create a secret gist with filename <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4}}>golf-warriors.json</code> and content <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4}}>{'{}'}</code>. Gist ID is the long code in the URL.</p>
-            <div style={{display:'flex',flexDirection:'column',gap:'.6rem'}}>
-              <div><div className="settings-label">Gist ID</div><input className="settings-input" type="text" placeholder="a1b2c3d4..." value={syncGistId} onChange={e=>setSyncGistId(e.target.value)}/><div className="settings-hint">From: gist.github.com/username/<strong>GIST_ID</strong></div></div>
-              <div><div className="settings-label">GitHub Token</div><input className="settings-input" type="password" placeholder="ghp_..." value={syncToken} onChange={e=>setSyncToken(e.target.value)}/><div className="settings-hint">GitHub Settings → Developer settings → Personal access tokens → check gist scope</div></div></div>
-            {syncStatus!=='idle'&&<div className={`settings-status ${syncStatus==='testing'?'idle':syncStatus==='ok'?'ok':'bad'}`} style={{marginTop:'.6rem'}}>{syncStatus==='testing'?'⏳ Testing…':syncStatus==='ok'?'✅ Connected! All phones will now sync.':'❌ Failed. Check your Bin ID and API key.'}</div>}
-            <button className="btn-s" style={{marginTop:'.6rem',fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Sync Connection</button>
-          </div>
 
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
