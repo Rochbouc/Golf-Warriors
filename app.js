@@ -16,17 +16,15 @@ function DesktopBlock(){
 
 /* ── SEED DATA ── */
 const SEED_PLAYERS=[
-  {id:'p1',name:'Chris Leger',email:'legerchris83@gmail.com',password:'golf',photo:null,role:'player'},
   {id:'p2',name:'Jules Melanson',email:'jules_18melanson@hotmail.com',password:'golf',photo:null,role:'player'},
   {id:'p3',name:'Stef Audet',email:'stephane.france@rogers.com',password:'golf',photo:null,role:'player'},
   {id:'p4',name:'PP',email:'pierrepaul.lanteigne@gmail.com',password:'golf',photo:null,role:'player'},
   {id:'p5',name:'Dr Rhé',email:'rheal.boudreau@hotmail.com',password:'golf',photo:null,role:'player'},
   {id:'p6',name:'Dave',email:'divadocan@gmail.com',password:'golf',photo:null,role:'player'},
   {id:'p7',name:'Marc LeBlanc',email:'marc@jomaeng.com',password:'golf',photo:null,role:'player'},
-  {id:'p8',name:'Lagace',email:'stefgolf72@gmail.com',password:'golf',photo:null,role:'player'},
   {id:'p9',name:'Roch Boucher',email:'boucher.roch@gmail.com',password:'golf',photo:null,role:'manager'},
-  {id:'p11',name:'Jacques Bourgeois',email:'jbourgeois@memcocontrols.com',password:'golf',photo:null,role:'player'},
   {id:'p12',name:'Alain Malenfant',email:'alain.malenfant@architects4.ca',password:'golf',photo:null,role:'player'},
+  {id:'p13',name:'Louis-Philippe Boucher',email:'boucherlouisp@gmail.com',password:'golf',photo:null,role:'player'},
 ];
 const ADMIN={id:'admin',name:'Admin',email:'admin@golfwarriors.com',password:'golf',photo:null,role:'admin'};
 const SEED_TT=[
@@ -513,32 +511,13 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
 }
 
 /* ── PLAYERS TAB ── */
-function PlayersTab({players,teeTimes,onAddPlayer,onUpdatePlayer,onDeletePlayer,toast,canManagePlayers}){
-  const[showForm,setShowForm]=useState(false);
+function PlayersTab({players,teeTimes,onUpdatePlayer,onDeletePlayer,toast,canManagePlayers}){
   const[editPlayer,setEditPlayer]=useState(null);
-  const[name,setName]=useState('');const[email,setEmail]=useState('');const[pass,setPass]=useState('');
-  const add=()=>{
-    if(!name||!email||!pass){toast('Fill all fields.','err');return;}
-    if(players.find(p=>p.email.toLowerCase()===email.toLowerCase())){toast('Email already exists.','err');return;}
-    const p={id:uid(),name:name.trim(),email:email.trim().toLowerCase(),password:pass,photo:null,role:'player'};
-    onAddPlayer(p);setName('');setEmail('');setPass('');setShowForm(false);
-  };
   return(
     <div className="page">
       <div className="ph">
         <div className="ph-left"><div className="ph-eyebrow">Management</div><h2>Players</h2></div>
-        {canManagePlayers&&<button className="btn-p" onClick={()=>setShowForm(s=>!s)}>{showForm?'Cancel':'+ Add Player'}</button>}
       </div>
-      {canManagePlayers&&showForm&&(
-        <div className="fcard" style={{marginBottom:'1.5rem'}}>
-          <div className="fgrid">
-            <div className="fg"><label>Name</label><input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Full name"/></div>
-            <div className="fg"><label>Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="email@example.com"/></div>
-            <div className="fg"><label>Password</label><input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="Temp password"/></div>
-          </div>
-          <div className="factions"><button className="btn-p" onClick={add}>Add Player</button></div>
-        </div>
-      )}
       <div className="sec-label">All Players{canManagePlayers?' — tap to edit':''}</div>
       <div className="pgrid">
         {players.filter(p=>p.role!=='admin').map(p=>{
@@ -620,7 +599,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
   const firstDay=new Date(year,month,1).getDay();
   const daysInMonth=new Date(year,month+1,0).getDate();
   const teesByDay={};
-  teeTimes.forEach(t=>{if(!t.date)return;const d=new Date(t.date+'T12:00:00');if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!teesByDay[k])teesByDay[k]=[];teesByDay[k].push(t);}});
+  teeTimes.filter(isUpcoming).forEach(t=>{if(!t.date)return;const d=new Date(t.date+'T12:00:00');if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!teesByDay[k])teesByDay[k]=[];teesByDay[k].push(t);}});
   const cells=[];
   for(let i=0;i<firstDay;i++)cells.push(null);
   for(let d=1;d<=daysInMonth;d++)cells.push(d);
@@ -731,14 +710,14 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManage
 }
 
 /* ── HISTORY ── */
-function History({teeTimes,players,currentUser,onOpen}){
+function History({teeTimes,players,currentUser,onOpen,onDelete,canManagePlayers}){
   const past=teeTimes.filter(t=>!isUpcoming(t));
   return(
     <div className="page">
       <div className="ph"><div className="ph-left"><div className="ph-eyebrow">Past Rounds</div><h1>History</h1></div></div>
       {past.length===0
         ?<div className="empty"><div className="empty-ico">📋</div><h2>No past rounds</h2><p>Completed tee times appear here.</p></div>
-        :<div className="tgrid">{past.map(t=><TeeCard key={t.id} tee={t} players={players} currentUser={currentUser} onOpen={onOpen} onDelete={()=>{}} canManagePlayers={false}/>)}</div>}
+        :<div className="tgrid">{past.map(t=><TeeCard key={t.id} tee={t} players={players} currentUser={currentUser} onOpen={onOpen} onDelete={onDelete} canManagePlayers={canManagePlayers}/>)}</div>}
     </div>
   );
 }
@@ -955,8 +934,8 @@ function App(){
       {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard');}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee');}} onNew={d=>{setEditTee(null);setBookDate(d);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
-      {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast} canManagePlayers={canManagePlayers}/>}
-      {tab==='history'&&<History teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee}/>}
+      {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast} canManagePlayers={canManagePlayers}/>}
+      {tab==='history'&&<History teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} canManagePlayers={canManagePlayers}/>}
       {tab==='profile'&&<ProfilePage currentUser={currentUser} onUpdate={handleUpdateUser} onLogout={handleLogout} toast={toast}/>}
       {editTee&&tab==='new-tee'&&<BookTeeTime tee={editTee} players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setEditTee(null);setBookDate(null);setTab('dashboard');}} toast={toast} isEdit={true}/>}
       {detailTee&&<TeeDetailModal tee={detailTee} teeTimes={teeTimes} currentUser={currentUser} onClose={()=>setDetailTee(null)} onRsvp={handleRsvp} onGuestRsvp={handleGuestRsvp} onEdit={t=>{setDetailTee(null);setEditTee(t);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
