@@ -93,10 +93,22 @@ function LoginScreen({onLogin}){
   const[email,setEmail]=useState('');
   const[pass,setPass]=useState('');
   const[err,setErr]=useState('');
-  const doLogin=()=>{
-    setErr('');
+  const[loading,setLoading]=useState(false);
+  const doLogin=async()=>{
+    setErr('');setLoading(true);
+    // Always try to pull latest players from cloud first so new players can log in
+    if(isJBConfigured()){
+      try{
+        const data=await jbRead();
+        if(data?.players?.length){
+          localStorage.setItem('gw_players',JSON.stringify(data.players));
+          if(data.teeTimes?.length)localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));
+        }
+      }catch{}
+    }
     const players=loadPlayers();
     const user=players.find(p=>p.email.toLowerCase()===email.toLowerCase().trim());
+    setLoading(false);
     if(!user){setErr('Email not registered. Contact the admin.');return;}
     if(user.password!==pass){setErr('Incorrect password.');return;}
     onLogin(user);
@@ -110,7 +122,7 @@ function LoginScreen({onLogin}){
           <div className="login-input-wrap"><label>Email</label><input className="login-input" type="email" placeholder="your@email.com" value={email} onChange={e=>{setEmail(e.target.value);setErr('');}} onKeyDown={e=>{if(e.key==='Enter')doLogin();}}/></div>
           <div className="login-input-wrap"><label>Password</label><input className="login-input" type="password" placeholder="••••••••" value={pass} onChange={e=>{setPass(e.target.value);setErr('');}} onKeyDown={e=>{if(e.key==='Enter')doLogin();}}/></div>
           {err&&<div className="login-err">{err}</div>}
-          <button className="btn-p" style={{width:'100%',padding:'.75rem',marginTop:'.25rem'}} onClick={doLogin}>Sign In →</button>
+          <button className="btn-p" style={{width:'100%',padding:'.75rem',marginTop:'.25rem'}} onClick={doLogin} disabled={loading}>{loading?'Checking…':'Sign In →'}</button>
           <div className="login-note">Default password: <strong>golf</strong><br/>Change it under your profile after login.</div>
         </div>
       </div>
