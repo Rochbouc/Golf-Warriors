@@ -27,12 +27,7 @@ const SEED_PLAYERS=[
   {id:'p13',name:'Louis-Philippe Boucher',email:'boucherlouisp@gmail.com',password:'golf',photo:null,role:'player'},
 ];
 const ADMIN={id:'admin',name:'Admin',email:'admin@golfwarriors.com',password:'golf',photo:null,role:'admin'};
-const SEED_TT=[
-  {id:'tt1',course:'Memramcook',date:'2026-06-06',time:'08:30',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{p9:'yes',p2:'yes',p3:'yes'},createdBy:'p9',createdAt:new Date().toISOString()},
-  {id:'tt2',course:'Memramcook',date:'2026-06-06',time:'08:48',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{},createdBy:'p9',createdAt:new Date().toISOString()},
-  {id:'tt3',course:'Memramcook',date:'2026-06-07',time:'08:30',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{p9:'yes'},createdBy:'p9',createdAt:new Date().toISOString()},
-  {id:'tt4',course:'Memramcook',date:'2026-06-07',time:'08:48',notes:'',invites:['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'],guests:[],rsvps:{},createdBy:'p9',createdAt:new Date().toISOString()},
-];
+const SEED_TT=[];
 
 /* ── HELPERS ── */
 const AV_COLORS=['#1a7a3e','#1a5fa0','#8b2525','#5a2d8b','#b87a1a','#1a6b5a','#7a3a00','#3a4a8b'];
@@ -105,7 +100,18 @@ function loadPlayers(){
   const all=[ADMIN,...SEED_PLAYERS];localStorage.setItem('gw_players',JSON.stringify(all));return all;
 }
 function savePlayers(p){localStorage.setItem('gw_players',JSON.stringify(p));}
-function loadTeeTimes(){const s=localStorage.getItem('gw_tt');if(s){const t=JSON.parse(s);if(t.length)return t;}localStorage.setItem('gw_tt',JSON.stringify(SEED_TT));return SEED_TT;}
+function loadTeeTimes(){
+  const SEED_IDS=['tt1','tt2','tt3','tt4']; // old seed tee times — always remove
+  const s=localStorage.getItem('gw_tt');
+  if(s){
+    const t=JSON.parse(s);
+    const cleaned=t.filter(x=>!SEED_IDS.includes(x.id));
+    if(cleaned.length!==t.length)localStorage.setItem('gw_tt',JSON.stringify(cleaned));
+    return cleaned;
+  }
+  localStorage.setItem('gw_tt',JSON.stringify([]));
+  return [];
+}
 function saveTeeTimes(t){localStorage.setItem('gw_tt',JSON.stringify(t));}
 function getEJSConfig(){return JSON.parse(localStorage.getItem('ejs_cfg')||'{"publicKey":"","serviceId":"","templateId":"","appUrl":""}');}
 function isEJSConfigured(){const c=getEJSConfig();return !!(c.publicKey&&c.serviceId&&c.templateId);}
