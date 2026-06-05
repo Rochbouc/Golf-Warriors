@@ -113,7 +113,6 @@ function loadTeeTimes(){
   localStorage.setItem('gw_tt',JSON.stringify(SEED_TEETIMES));
   return SEED_TEETIMES;
 }
-function saveTeeTimes(t){localStorage.setItem('gw_tt',JSON.stringify(t));}
 function getEJSConfig(){return JSON.parse(localStorage.getItem('ejs_cfg')||'{"publicKey":"","serviceId":"","templateId":"","appUrl":""}');}
 function isEJSConfigured(){const c=getEJSConfig();return !!(c.publicKey&&c.serviceId&&c.templateId);}
 function getAppUrl(){
