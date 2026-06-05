@@ -89,12 +89,17 @@ async function pushSync(tt,pl){if(isSyncConfigured())syncWrite({teeTimes:tt,play
 
 /* ── STORAGE ── */
 function loadPlayers(){
+  const REMOVED_IDS=['p1','p8','p11']; // Chris Leger, Lagace, Jacques Bourgeois — removed from app
   const s=localStorage.getItem('gw_players');
   if(s){
     let p=JSON.parse(s);
     p=p.map(x=>x.password==='golf123'?{...x,password:'golf'}:x);
+    // Remove deleted players
+    p=p.filter(x=>!REMOVED_IDS.includes(x.id));
+    // Add any missing seed players
     const missingIds=SEED_PLAYERS.filter(s=>!p.find(x=>x.id===s.id));
-    if(missingIds.length){p=[...p,...missingIds];localStorage.setItem('gw_players',JSON.stringify(p));}
+    if(missingIds.length)p=[...p,...missingIds];
+    localStorage.setItem('gw_players',JSON.stringify(p));
     return p;
   }
   const all=[ADMIN,...SEED_PLAYERS];localStorage.setItem('gw_players',JSON.stringify(all));return all;
