@@ -45,17 +45,41 @@ const isUpcoming=tee=>{if(!tee.date||!tee.time)return true;try{const d=new Date(
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 /* ── JSONBIN SYNC ── */
-function getJBConfig(){return JSON.parse(localStorage.getItem('gw_jb')||'{"binId":"","apiKey":""}');}
-function isJBConfigured(){const c=getJBConfig();return !!(c.binId&&c.apiKey);}
-async function jbRead(){
-  const c=getJBConfig();if(!c.binId||!c.apiKey)return null;
-  try{const r=await fetch(`https://api.jsonbin.io/v3/b/${c.binId}/latest`,{headers:{'X-Master-Key':c.apiKey,'X-Bin-Meta':'false'}});return r.ok?await r.json():null;}catch{return null;}
+/* ─────────────────────────────────────────
+   GITHUB GIST SYNC — auto-configured
+   ───────────────────────────────────────── */
+const GIST_ID    = '';   // filled in by Settings
+const GIST_TOKEN = '';   // filled in by Settings
+
+function getSyncConfig(){
+  const saved=JSON.parse(localStorage.getItem('gw_sync')||'{"gistId":"","token":""}');
+  return {gistId:GIST_ID||saved.gistId||'', token:GIST_TOKEN||saved.token||''};
 }
-async function jbWrite(data){
-  const c=getJBConfig();if(!c.binId||!c.apiKey)return false;
-  try{await fetch(`https://api.jsonbin.io/v3/b/${c.binId}`,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':c.apiKey},body:JSON.stringify(data)});return true;}catch{return false;}
+function isSyncConfigured(){const c=getSyncConfig();return !!(c.gistId&&c.token);}
+async function syncRead(){
+  const c=getSyncConfig();if(!c.gistId)return null;
+  try{
+    const headers={'Accept':'application/vnd.github+json'};
+    if(c.token)headers['Authorization']='Bearer '+c.token;
+    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{headers});
+    if(!r.ok)return null;
+    const d=await r.json();
+    const content=d.files&&d.files['golf-warriors.json']&&d.files['golf-warriors.json'].content;
+    return content?JSON.parse(content):null;
+  }catch{return null;}
 }
-async function pushSync(tt,pl){if(isJBConfigured())jbWrite({teeTimes:tt,players:pl,updated:Date.now()}).catch(()=>{});}
+async function syncWrite(data){
+  const c=getSyncConfig();if(!c.gistId||!c.token)return false;
+  try{
+    await fetch(`https://api.github.com/gists/${c.gistId}`,{
+      method:'PATCH',
+      headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+c.token,'Content-Type':'application/json'},
+      body:JSON.stringify({files:{'golf-warriors.json':{content:JSON.stringify(data)}}})
+    });
+    return true;
+  }catch{return false;}
+}
+async function pushSync(tt,pl){if(isSyncConfigured())syncWrite({teeTimes:tt,players:pl,updated:Date.now()}).catch(()=>{});}
 
 /* ── STORAGE ── */
 function loadPlayers(){
@@ -97,9 +121,9 @@ function LoginScreen({onLogin}){
   const doLogin=async()=>{
     setErr('');setLoading(true);
     // Always try to pull latest players from cloud first so new players can log in
-    if(isJBConfigured()){
+    if(isSyncConfigured()){
       try{
-        const data=await jbRead();
+        const data=await syncRead();
         if(data?.players?.length){
           localStorage.setItem('gw_players',JSON.stringify(data.players));
           if(data.teeTimes?.length)localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));
@@ -685,25 +709,28 @@ function History({teeTimes,players,currentUser,onOpen}){
 /* ── SETTINGS MODAL ── */
 function SettingsModal({onClose}){
   const saved=getEJSConfig();
-  const savedJB=getJBConfig();
+  const savedSync=getSyncConfig();
   const[pk,setPk]=useState(saved.publicKey||'');
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
-  const[jbBinId,setJbBinId]=useState(savedJB.binId||'');
-  const[jbApiKey,setJbApiKey]=useState(savedJB.apiKey||'');
-  const[jbStatus,setJbStatus]=useState('idle');
+  const[syncGistId,setSyncGistId]=useState(savedSync.binId||'');
+  const[syncToken,setSyncToken]=useState(savedSync.apiKey||'');
+  const[syncStatus,setSyncStatus]=useState('idle');
   const[ejsStatus,setEjsStatus]=useState('idle');
   const[ejsMsg,setEjsMsg]=useState('');
   const save=()=>{
     localStorage.setItem('ejs_cfg',JSON.stringify({publicKey:pk.trim(),serviceId:sid.trim(),templateId:tid.trim(),appUrl:appUrl.trim()}));
-    if(jbBinId.trim()&&jbApiKey.trim())localStorage.setItem('gw_jb',JSON.stringify({binId:jbBinId.trim(),apiKey:jbApiKey.trim()}));
+    if(syncGistId.trim()&&syncToken.trim())localStorage.setItem('gw_sync',JSON.stringify({gistId:syncGistId.trim(),token:syncToken.trim()}));
     onClose(true);
   };
-  const testJB=async()=>{
-    if(!jbBinId||!jbApiKey){setJbStatus('bad');return;}
-    setJbStatus('testing');
-    try{const r=await fetch(`https://api.jsonbin.io/v3/b/${jbBinId.trim()}/latest`,{headers:{'X-Master-Key':jbApiKey.trim(),'X-Bin-Meta':'false'}});r.ok?setJbStatus('ok'):setJbStatus('bad');}catch{setJbStatus('bad');}
+  const testSync=async()=>{
+    if(!syncGistId||!syncToken){setSyncStatus('bad');return;}
+    setSyncStatus('testing');
+    try{
+      const r=await fetch(`https://api.github.com/gists/${syncGistId.trim()}`,{headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+syncToken.trim()}});
+      r.ok?setSyncStatus('ok'):setSyncStatus('bad');
+    }catch{setSyncStatus('bad');}
   };
   const testEJS=async()=>{
     if(!pk||!sid||!tid){setEjsStatus('bad');setEjsMsg('Fill all three fields first.');return;}
@@ -720,15 +747,14 @@ function SettingsModal({onClose}){
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
               <div className="settings-label" style={{margin:0}}>☁️ Cloud Sync</div>
-              {jbBinId&&jbApiKey?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>:<span style={{fontSize:'.65rem',fontWeight:700,background:'#fff3cd',color:'#856404',padding:'2px 8px',borderRadius:20}}>⚠️ Not set</span>}
+              {syncGistId&&syncToken?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>:<span style={{fontSize:'.65rem',fontWeight:700,background:'#fff3cd',color:'#856404',padding:'2px 8px',borderRadius:20}}>⚠️ Not set</span>}
             </div>
-            <p className="hint" style={{marginBottom:'.75rem'}}><strong>Required so all phones see the same data.</strong> Free: <a href="https://jsonbin.io" target="_blank" style={{color:'var(--text)',fontWeight:600,textDecoration:'underline'}}>jsonbin.io</a> → Sign up → New Bin → paste <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4}}>{'{"teeTimes":[],"players":[]}'}</code> → Save Bin. Then API Keys → Master Key.</p>
+            <p className="hint" style={{marginBottom:'.75rem'}}><strong>Required so all phones see the same data.</strong> Free: <a href="https://jsonbin.io" target="_blank" style={{color:'var(--text)',fontWeight:600,textDecoration:'underline'}}>gist.github.com</a> — create a secret gist with filename <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4}}>golf-warriors.json</code> and content <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4}}>{'{}'}</code>. Gist ID is the long code in the URL.</p>
             <div style={{display:'flex',flexDirection:'column',gap:'.6rem'}}>
-              <div><div className="settings-label">Bin ID</div><input className="settings-input" type="text" placeholder="6849a2f..." value={jbBinId} onChange={e=>setJbBinId(e.target.value)}/><div className="settings-hint">From the bin URL after /b/</div></div>
-              <div><div className="settings-label">Master API Key</div><input className="settings-input" type="password" placeholder="$2a$10$..." value={jbApiKey} onChange={e=>setJbApiKey(e.target.value)}/><div className="settings-hint">JSONBin → API Keys → Master Key</div></div>
-            </div>
-            {jbStatus!=='idle'&&<div className={`settings-status ${jbStatus==='testing'?'idle':jbStatus==='ok'?'ok':'bad'}`} style={{marginTop:'.6rem'}}>{jbStatus==='testing'?'⏳ Testing…':jbStatus==='ok'?'✅ Connected! All phones will now sync.':'❌ Failed. Check your Bin ID and API key.'}</div>}
-            <button className="btn-s" style={{marginTop:'.6rem',fontSize:'.75rem'}} onClick={testJB} disabled={jbStatus==='testing'}>Test Sync Connection</button>
+              <div><div className="settings-label">Gist ID</div><input className="settings-input" type="text" placeholder="a1b2c3d4..." value={syncGistId} onChange={e=>setSyncGistId(e.target.value)}/><div className="settings-hint">From: gist.github.com/username/<strong>GIST_ID</strong></div></div>
+              <div><div className="settings-label">GitHub Token</div><input className="settings-input" type="password" placeholder="ghp_..." value={syncToken} onChange={e=>setSyncToken(e.target.value)}/><div className="settings-hint">GitHub Settings → Developer settings → Personal access tokens → check gist scope</div></div></div>
+            {syncStatus!=='idle'&&<div className={`settings-status ${syncStatus==='testing'?'idle':syncStatus==='ok'?'ok':'bad'}`} style={{marginTop:'.6rem'}}>{syncStatus==='testing'?'⏳ Testing…':syncStatus==='ok'?'✅ Connected! All phones will now sync.':'❌ Failed. Check your Bin ID and API key.'}</div>}
+            <button className="btn-s" style={{marginTop:'.6rem',fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Sync Connection</button>
           </div>
 
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
@@ -786,7 +812,7 @@ function App(){
     const params=new URLSearchParams(window.location.search);
     const openId=params.get('open');
     if(openId){window.history.replaceState({},'',window.location.pathname);const t=loadTeeTimes().find(t=>t.id===openId);if(t)setDetailTee(t);}
-    if(isJBConfigured()){jbRead().then(data=>{if(!data)return;if(data.teeTimes?.length){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}if(data.players?.length){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}}).catch(()=>{});}
+    if(isSyncConfigured()){syncRead().then(data=>{if(!data)return;if(data.teeTimes?.length){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}if(data.players?.length){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}}).catch(()=>{});}
   },[]);
 
   useEffect(()=>{
