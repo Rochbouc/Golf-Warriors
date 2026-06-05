@@ -54,6 +54,33 @@ const validEmail=e=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const cap=s=>s?s[0].toUpperCase()+s.slice(1):'';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
+/* ── JSONBIN SYNC ── */
+function getJBConfig(){return JSON.parse(localStorage.getItem('gw_jb')||'{"binId":"","apiKey":""}');}
+function isJBConfigured(){const c=getJBConfig();return !!(c.binId&&c.apiKey);}
+async function jbRead(){
+  const c=getJBConfig();if(!c.binId||!c.apiKey)return null;
+  try{
+    const r=await fetch(`https://api.jsonbin.io/v3/b/${c.binId}/latest`,{headers:{'X-Master-Key':c.apiKey,'X-Bin-Meta':'false'}});
+    if(!r.ok)return null;
+    return await r.json();
+  }catch{return null;}
+}
+async function jbWrite(data){
+  const c=getJBConfig();if(!c.binId||!c.apiKey)return false;
+  try{
+    await fetch(`https://api.jsonbin.io/v3/b/${c.binId}`,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':c.apiKey},body:JSON.stringify(data)});
+    return true;
+  }catch{return false;}
+}
+async function syncSave(teeTimes,players){
+  if(!isJBConfigured())return;
+  await jbWrite({teeTimes,players,updated:Date.now()});
+}
+async function syncLoad(){
+  if(!isJBConfigured())return null;
+  return await jbRead();
+}
+
 /* ── STORAGE ── */
 function loadPlayers(){
   const s=localStorage.getItem('gw_players');
@@ -70,8 +97,16 @@ function loadPlayers(){
   localStorage.setItem('gw_players',JSON.stringify(all));
   return all;
 }
-function savePlayers(p){localStorage.setItem('gw_players',JSON.stringify(p));}
-function loadTeeTimes(){
+function savePlayers(p){
+  localStorage.setItem('gw_players',JSON.stringify(p));
+}
+function saveTeeTimes(t){
+  localStorage.setItem('gw_tt',JSON.stringify(t));
+}
+// Call this after any data change to push to cloud
+async function pushSync(teeTimes,players){
+  if(isJBConfigured())await syncSave(teeTimes,players);
+}
   const s=localStorage.getItem('gw_tt');
   if(s){const t=JSON.parse(s);if(t.length)return t;}
   localStorage.setItem('gw_tt',JSON.stringify(SEED_TEETIMES));
@@ -535,7 +570,7 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
 }
 
 /* ── PLAYERS TAB ── */
-function PlayersTab({players,teeTimes,onAddPlayer,onUpdatePlayer,onDeletePlayer,toast}){
+function PlayersTab({players,teeTimes,onAddPlayer,onUpdatePlayer,onDeletePlayer,toast,canManagePlayers}){
   const[showForm,setShowForm]=useState(false);
   const[editPlayer,setEditPlayer]=useState(null);
   const[name,setName]=useState('');const[email,setEmail]=useState('');const[pass,setPass]=useState('');
@@ -543,14 +578,14 @@ function PlayersTab({players,teeTimes,onAddPlayer,onUpdatePlayer,onDeletePlayer,
     if(!name||!email||!pass){toast('Fill all fields.','err');return;}
     if(players.find(p=>p.email.toLowerCase()===email.toLowerCase())){toast('Email already exists.','err');return;}
     const p={id:uid(),name:name.trim(),email:email.trim().toLowerCase(),password:pass,photo:null,role:'player'};
-    onAddPlayer(p);setName('');setEmail('');setPass('');setShowForm(false);toast(`${p.name} added! ✅`);
+    onAddPlayer(p);setName('');setEmail('');setPass('');setShowForm(false);
   };
   return(
     <div className="page">
       <div className="ph"><div className="ph-left"><div className="ph-eyebrow">Management</div><h2>Players</h2></div>
-        <button className="btn-p" onClick={()=>setShowForm(s=>!s)}>{showForm?'Cancel':'+ Add Player'}</button>
+        {canManagePlayers&&<button className="btn-p" onClick={()=>setShowForm(s=>!s)}>{showForm?'Cancel':'+ Add Player'}</button>}
       </div>
-      {showForm&&(
+      {canManagePlayers&&showForm&&(
         <div className="fcard" style={{marginBottom:'1.5rem'}}>
           <div className="fgrid">
             <div className="fg"><label>Name</label><input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Full name"/></div>
@@ -560,13 +595,13 @@ function PlayersTab({players,teeTimes,onAddPlayer,onUpdatePlayer,onDeletePlayer,
           <div className="factions"><button className="btn-p" onClick={add}>Add Player</button></div>
         </div>
       )}
-      <div className="sec-label">All Players — tap to edit</div>
+      <div className="sec-label">All Players{canManagePlayers?' — tap to edit':''}</div>
       <div className="pgrid">
         {players.filter(p=>p.role!=='admin').map(p=>{
           const rounds=teeTimes.filter(t=>(t.invites||[]).includes(p.id)).length;
           const yes=teeTimes.reduce((a,t)=>a+((t.rsvps||{})[p.id]==='yes'?1:0),0);
           return(
-            <div className="pc" key={p.id} onClick={()=>setEditPlayer(p)} style={{cursor:'pointer'}}>
+            <div className="pc" key={p.id} onClick={()=>canManagePlayers&&setEditPlayer(p)} style={{cursor:canManagePlayers?'pointer':'default'}}>
               <div className="pav" style={{background:p.photo?'transparent':avColor(p.name)}}>{p.photo?<img src={p.photo} alt={p.name}/>:initials(p.name)}</div>
               <div className="pinfo">
                 <div className="pname">{p.name}</div>
@@ -577,7 +612,7 @@ function PlayersTab({players,teeTimes,onAddPlayer,onUpdatePlayer,onDeletePlayer,
           );
         })}
       </div>
-      {editPlayer&&(
+      {canManagePlayers&&editPlayer&&(
         <PlayerEditModal player={editPlayer} players={players}
           onSave={updated=>{onUpdatePlayer(updated);setEditPlayer(null);toast(`${updated.name} updated! ✅`);}}
           onDelete={()=>{onDeletePlayer(editPlayer.id);setEditPlayer(null);toast(`${editPlayer.name} removed.`);}}
@@ -780,15 +815,29 @@ function History({teeTimes,players,currentUser,onOpen}){
 /* ── SETTINGS MODAL ── */
 function SettingsModal({onClose}){
   const saved=getEJSConfig();
+  const savedJB=getJBConfig();
   const[pk,setPk]=useState(saved.publicKey||'');
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
+  const[jbBinId,setJbBinId]=useState(savedJB.binId||'');
+  const[jbApiKey,setJbApiKey]=useState(savedJB.apiKey||'');
+  const[jbStatus,setJbStatus]=useState('idle');
   const[status,setStatus]=useState('idle');
   const[statusMsg,setStatusMsg]=useState('');
   const save=()=>{
     localStorage.setItem('ejs_cfg',JSON.stringify({publicKey:pk.trim(),serviceId:sid.trim(),templateId:tid.trim(),appUrl:appUrl.trim()}));
+    if(jbBinId.trim()&&jbApiKey.trim())localStorage.setItem('gw_jb',JSON.stringify({binId:jbBinId.trim(),apiKey:jbApiKey.trim()}));
     onClose(true);
+  };
+  const testJB=async()=>{
+    if(!jbBinId||!jbApiKey){setJbStatus('bad');return;}
+    setJbStatus('testing');
+    try{
+      const r=await fetch(`https://api.jsonbin.io/v3/b/${jbBinId.trim()}/latest`,{headers:{'X-Master-Key':jbApiKey.trim(),'X-Bin-Meta':'false'}});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      setJbStatus('ok');
+    }catch(e){setJbStatus('bad');console.error(e);}
   };
   const test=async()=>{
     if(!pk||!sid||!tid){setStatus('bad');setStatusMsg('Fill all three EmailJS fields first.');return;}
@@ -803,6 +852,35 @@ function SettingsModal({onClose}){
       <div className="modal" style={{maxWidth:500}}>
         <div className="modal-head"><h2>⚙️ Settings</h2><button className="modal-x" onClick={()=>onClose(false)}>✕</button></div>
         <div className="modal-body">
+
+          {/* Cloud Sync */}
+          <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
+              <div className="settings-label" style={{margin:0}}>☁️ Cloud Sync</div>
+              {jbBinId&&jbApiKey?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>
+              :<span style={{fontSize:'.65rem',fontWeight:700,background:'#fff3cd',color:'#856404',padding:'2px 8px',borderRadius:20}}>⚠️ Not set</span>}
+            </div>
+            <p className="hint" style={{marginBottom:'.75rem'}}>
+              <strong>Required so all phones see the same data.</strong> Free setup (2 min): go to <a href="https://jsonbin.io" target="_blank" style={{color:'var(--text)',fontWeight:600,textDecoration:'underline'}}>jsonbin.io</a> → Sign up free → Create Bin → paste an empty <code style={{background:'var(--bg2)',padding:'1px 5px',borderRadius:4}}>{'{}'}</code> → Save. Then go to API Keys → Master Key.
+            </p>
+            <div style={{display:'flex',flexDirection:'column',gap:'.6rem'}}>
+              <div>
+                <div className="settings-label">Bin ID</div>
+                <input className="settings-input" type="text" placeholder="6849a2f..." value={jbBinId} onChange={e=>setJbBinId(e.target.value)}/>
+                <div className="settings-hint">Found in the bin URL: jsonbin.io/v3/b/<strong>BIN_ID</strong></div>
+              </div>
+              <div>
+                <div className="settings-label">Master API Key</div>
+                <input className="settings-input" type="password" placeholder="$2a$10$..." value={jbApiKey} onChange={e=>setJbApiKey(e.target.value)}/>
+                <div className="settings-hint">JSONBin → API Keys → Master Key</div>
+              </div>
+            </div>
+            {jbStatus!=='idle'&&<div className={`settings-status ${jbStatus==='testing'?'idle':jbStatus==='ok'?'ok':'bad'}`} style={{marginTop:'.6rem'}}>
+              {jbStatus==='testing'?'⏳ Testing…':jbStatus==='ok'?'✅ Connected! All phones will now sync.':'❌ Failed. Check your Bin ID and API key.'}
+            </div>}
+            <button className="btn-s" style={{marginTop:'.6rem',fontSize:'.75rem'}} onClick={testJB} disabled={jbStatus==='testing'}>Test Sync Connection</button>
+          </div>
+
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
               <div className="settings-label" style={{margin:0}}>🌐 App / Website URL</div>
@@ -851,7 +929,27 @@ function App(){
   const isAdmin=currentUser?.role==='admin';
   const canManagePlayers=isAdmin||currentUser?.role==='manager';
 
-  useEffect(()=>{saveTeeTimes(teeTimes);},[teeTimes]);
+  useEffect(()=>{
+    saveTeeTimes(teeTimes);
+    pushSync(teeTimes,players);
+  },[teeTimes]);
+
+  // Pull latest data from cloud on app load
+  useEffect(()=>{
+    if(isJBConfigured()){
+      syncLoad().then(data=>{
+        if(!data)return;
+        if(data.teeTimes&&Array.isArray(data.teeTimes)){
+          localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));
+          setTeeTimes(data.teeTimes);
+        }
+        if(data.players&&Array.isArray(data.players)){
+          localStorage.setItem('gw_players',JSON.stringify(data.players));
+          setPlayers(data.players);
+        }
+      }).catch(()=>{});
+    }
+  },[]);
   useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session');},[currentUser]);
 
   // Handle ?open=TEEID from email link
@@ -911,11 +1009,11 @@ function App(){
 
   const handleDelete=id=>{if(!confirm('Delete this tee time?'))return;setTeeTimes(p=>p.filter(t=>t.id!==id));toast('Tee time deleted.');};
   const handleAddPlayer=p=>{
-    const u=[...players,p];setPlayers(u);savePlayers(u);
+    const u=[...players,p];setPlayers(u);savePlayers(u);pushSync(teeTimes,u);
     toast(`${p.name} added! They will receive an email next time they are selected on a tee time.`);
   };
-  const handleUpdatePlayer=u=>{const p=players.map(x=>x.id===u.id?u:x);setPlayers(p);savePlayers(p);if(currentUser.id===u.id)setCurrentUser(u);};
-  const handleDeletePlayer=id=>{const p=players.filter(x=>x.id!==id);setPlayers(p);savePlayers(p);};
+  const handleUpdatePlayer=u=>{const p=players.map(x=>x.id===u.id?u:x);setPlayers(p);savePlayers(p);pushSync(teeTimes,p);if(currentUser.id===u.id)setCurrentUser(u);};
+  const handleDeletePlayer=id=>{const p=players.filter(x=>x.id!==id);setPlayers(p);savePlayers(p);pushSync(teeTimes,p);};
   const handleUpdateUser=u=>{setCurrentUser(u);setPlayers(prev=>{const p=prev.map(x=>x.id===u.id?u:x);savePlayers(p);return p;});};
 
   if(!currentUser)return<LoginScreen onLogin={handleLogin}/>;
@@ -974,7 +1072,7 @@ function App(){
       {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} isAdmin={isAdmin} canManagePlayers={canManagePlayers}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard');}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee');}} onNew={date=>{setEditTee(null);setBookDate(date);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
-      {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast}/>}
+      {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onAddPlayer={handleAddPlayer} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast} canManagePlayers={canManagePlayers}/>}
       {tab==='history'&&<History teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee}/>}
       {tab==='profile'&&<ProfilePage currentUser={currentUser} onUpdate={handleUpdateUser} onLogout={handleLogout} toast={toast}/>}
 
