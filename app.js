@@ -732,15 +732,30 @@ function History({teeTimes,players,currentUser,onOpen}){
 /* ── SETTINGS MODAL ── */
 function SettingsModal({onClose}){
   const saved=getEJSConfig();
+  const savedSync=getSyncConfig();
   const[pk,setPk]=useState(saved.publicKey||'');
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
+  const[gistId,setGistId]=useState(savedSync.gistId||'');
+  const[gistToken,setGistToken]=useState(savedSync.token||'');
+  const[syncStatus,setSyncStatus]=useState('idle');
+  const[syncMsg,setSyncMsg]=useState('');
   const[ejsStatus,setEjsStatus]=useState('idle');
   const[ejsMsg,setEjsMsg]=useState('');
   const save=()=>{
     localStorage.setItem('ejs_cfg',JSON.stringify({publicKey:pk.trim(),serviceId:sid.trim(),templateId:tid.trim(),appUrl:appUrl.trim()}));
+    if(gistId.trim()&&gistToken.trim())localStorage.setItem('gw_sync',JSON.stringify({gistId:gistId.trim(),token:gistToken.trim()}));
     onClose(true);
+  };
+  const testSync=async()=>{
+    if(!gistId||!gistToken){setSyncStatus('bad');setSyncMsg('Fill both fields first.');return;}
+    setSyncStatus('testing');setSyncMsg('Testing…');
+    try{
+      const r=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+gistToken.trim()}});
+      if(r.ok){setSyncStatus('ok');setSyncMsg('✅ Connected! Sync is working.');}
+      else{setSyncStatus('bad');setSyncMsg('❌ Failed ('+r.status+'). Check Gist ID and Token.');}
+    }catch(e){setSyncStatus('bad');setSyncMsg('❌ Error: '+e.message);}
   };
   const testEJS=async()=>{
     if(!pk||!sid||!tid){setEjsStatus('bad');setEjsMsg('Fill all three fields first.');return;}
@@ -753,6 +768,26 @@ function SettingsModal({onClose}){
       <div className="modal" style={{maxWidth:500}}>
         <div className="modal-head"><h2>⚙️ Settings</h2><button className="modal-x" onClick={()=>onClose(false)}>✕</button></div>
         <div className="modal-body">
+
+          {/* Cloud Sync */}
+          <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
+              <div className="settings-label" style={{margin:0}}>☁️ Cloud Sync</div>
+              {syncStatus==='ok'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Connected</span>:syncStatus==='bad'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#fce8e6',color:'#c62828',padding:'2px 8px',borderRadius:20}}>✗ Failed</span>:isSyncConfigured()?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>:<span style={{fontSize:'.65rem',fontWeight:700,background:'#fff3cd',color:'#856404',padding:'2px 8px',borderRadius:20}}>⚠️ Not set</span>}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'.6rem',marginBottom:'.75rem'}}>
+              <div>
+                <div className="settings-label">Gist ID</div>
+                <input className="settings-input" type="text" placeholder="1e52836898f813e73ab344fbecb2b34f" value={gistId} onChange={e=>setGistId(e.target.value)}/>
+              </div>
+              <div>
+                <div className="settings-label">GitHub Token</div>
+                <input className="settings-input" type="password" placeholder="ghp_..." value={gistToken} onChange={e=>setGistToken(e.target.value)}/>
+              </div>
+            </div>
+            {syncStatus!=='idle'&&<div className={`settings-status ${syncStatus==='testing'?'idle':syncStatus}`} style={{marginBottom:'.5rem'}}>{syncStatus==='testing'?'⏳':''} {syncMsg}</div>}
+            <button className="btn-s" style={{fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Sync Connection</button>
+          </div>
 
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
