@@ -49,7 +49,7 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
    GITHUB GIST SYNC — auto-configured
    ───────────────────────────────────────── */
 const GIST_ID    = '1e52836898f813e73ab344fbecb2b34f';
-const GIST_TOKEN = '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';
+const GIST_TOKEN = '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';
 
 function getSyncConfig(){
   const saved=JSON.parse(localStorage.getItem('gw_sync')||'{"gistId":"","token":""}');
@@ -782,7 +782,7 @@ function SettingsModal({onClose}){
               </div>
               <div>
                 <div className="settings-label">GitHub Token</div>
-                <input className="settings-input" type="password" placeholder="ghp_..." value={gistToken} onChange={e=>setGistToken(e.target.value)}/>
+                <input className="settings-input" type="text" placeholder="ghp_..." value={gistToken} onChange={e=>setGistToken(e.target.value)}/>
               </div>
             </div>
             {syncStatus!=='idle'&&<div className={`settings-status ${syncStatus==='testing'?'idle':syncStatus}`} style={{marginBottom:'.5rem'}}>{syncStatus==='testing'?'⏳':''} {syncMsg}</div>}
