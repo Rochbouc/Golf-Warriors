@@ -53,9 +53,15 @@ const GIST_TOKEN = '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';
 
 function getSyncConfig(){
   const saved=JSON.parse(localStorage.getItem('gw_sync')||'{"gistId":"","token":""}');
-  return {gistId:GIST_ID||saved.gistId||'', token:GIST_TOKEN||saved.token||''};
+  return {
+    gistId: GIST_ID  || saved.gistId || '',
+    token:  GIST_TOKEN || saved.token  || '',
+  };
 }
-function isSyncConfigured(){const c=getSyncConfig();return !!(c.gistId&&c.token);}
+function isSyncConfigured(){
+  if(GIST_ID&&GIST_TOKEN)return true;
+  const c=getSyncConfig();return !!(c.gistId&&c.token);
+}
 async function syncRead(){
   const c=getSyncConfig();if(!c.gistId)return null;
   try{
