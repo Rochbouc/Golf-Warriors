@@ -65,9 +65,10 @@ function isSyncConfigured(){
 async function syncRead(){
   const c=getSyncConfig();if(!c.gistId)return null;
   try{
-    const headers={'Accept':'application/vnd.github+json'};
-    if(c.token)headers['Authorization']='Bearer '+c.token;
-    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{headers});
+    // Public gist — no token needed for reading
+    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{
+      headers:{'Accept':'application/vnd.github+json'}
+    });
     if(!r.ok)return null;
     const d=await r.json();
     const content=d.files&&d.files['golf-warriors.json']&&d.files['golf-warriors.json'].content;
@@ -749,12 +750,15 @@ function SettingsModal({onClose}){
     onClose(true);
   };
   const testSync=async()=>{
-    if(!gistId||!gistToken){setSyncStatus('bad');setSyncMsg('Fill both fields first.');return;}
+    if(!gistId){setSyncStatus('bad');setSyncMsg('Enter the Gist ID first.');return;}
     setSyncStatus('testing');setSyncMsg('Testing…');
     try{
-      const r=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+gistToken.trim()}});
+      // Test read without token (public gist)
+      const r=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{
+        headers:{'Accept':'application/vnd.github+json'}
+      });
       if(r.ok){setSyncStatus('ok');setSyncMsg('✅ Connected! Sync is working.');}
-      else{setSyncStatus('bad');setSyncMsg('❌ Failed ('+r.status+'). Check Gist ID and Token.');}
+      else{setSyncStatus('bad');setSyncMsg('❌ Failed ('+r.status+'). Check the Gist ID.');}
     }catch(e){setSyncStatus('bad');setSyncMsg('❌ Error: '+e.message);}
   };
   const testEJS=async()=>{
