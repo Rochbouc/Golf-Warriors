@@ -25,7 +25,8 @@ const SEED_PLAYERS=[
   {id:'p7',name:'Marc LeBlanc',email:'marc@jomaeng.com',password:'golf',photo:null,role:'player'},
   {id:'p8',name:'Lagace',email:'stefgolf72@gmail.com',password:'golf',photo:null,role:'player'},
   {id:'p9',name:'Roch Boucher',email:'boucher.roch@gmail.com',password:'golf',photo:null,role:'manager'},
-  {id:'p10',name:'Stéphane Lagacé',email:'stephane.lagace@gmail.com',password:'golf',photo:null,role:'manager'},
+  {id:'p11',name:'Jacques Bourgeois',email:'jbourgeois@memcocontrols.com',password:'golf',photo:null,role:'player'},
+  {id:'p12',name:'Alain Malenfant',email:'alain.malenfant@architects4.ca',password:'golf',photo:null,role:'player'},
 ];
 const ADMIN={id:'admin',name:'Admin',email:'admin@golfwarriors.com',password:'golf',photo:null,role:'admin'};
 const SEED_TT=[
@@ -94,7 +95,8 @@ function loadPlayers(){
   if(s){
     let p=JSON.parse(s);
     p=p.map(x=>x.password==='golf123'?{...x,password:'golf'}:x);
-    if(!p.find(x=>x.id==='p9')){p=[...p,...SEED_PLAYERS.filter(x=>['p9','p10'].includes(x.id))];localStorage.setItem('gw_players',JSON.stringify(p));}
+    const missingIds=SEED_PLAYERS.filter(s=>!p.find(x=>x.id===s.id));
+    if(missingIds.length){p=[...p,...missingIds];localStorage.setItem('gw_players',JSON.stringify(p));}
     return p;
   }
   const all=[ADMIN,...SEED_PLAYERS];localStorage.setItem('gw_players',JSON.stringify(all));return all;
@@ -127,18 +129,29 @@ function LoginScreen({onLogin}){
   const[loading,setLoading]=useState(false);
   const doLogin=async()=>{
     setErr('');setLoading(true);
-    // Always try to pull latest players from cloud first so new players can log in
+    const emailTrimmed=email.toLowerCase().trim();
+
+    // Step 1: Try cloud first
     if(isSyncConfigured()){
       try{
         const data=await syncRead();
         if(data?.players?.length){
           localStorage.setItem('gw_players',JSON.stringify(data.players));
           if(data.teeTimes?.length)localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));
+          // Check right away from cloud data
+          const cloudUser=data.players.find(p=>p.email.toLowerCase()===emailTrimmed);
+          if(cloudUser){
+            setLoading(false);
+            if(cloudUser.password!==pass){setErr('Incorrect password.');return;}
+            onLogin(cloudUser);return;
+          }
         }
-      }catch{}
+      }catch(e){console.warn('Cloud read failed:',e);}
     }
+
+    // Step 2: Fall back to local storage
     const players=loadPlayers();
-    const user=players.find(p=>p.email.toLowerCase()===email.toLowerCase().trim());
+    const user=players.find(p=>p.email.toLowerCase()===emailTrimmed);
     setLoading(false);
     if(!user){setErr('Email not registered. Contact the admin.');return;}
     if(user.password!==pass){setErr('Incorrect password.');return;}
@@ -795,10 +808,15 @@ function SettingsModal({onClose}){
               <button className="btn-p" style={{fontSize:'.75rem'}} onClick={async()=>{
                 const tt=JSON.parse(localStorage.getItem('gw_tt')||'[]');
                 const pl=JSON.parse(localStorage.getItem('gw_players')||'[]');
-                setSyncStatus('testing');setSyncMsg('Pushing data…');
+                setSyncStatus('testing');setSyncMsg('Pushing '+pl.length+' players…');
                 const ok=await syncWrite({teeTimes:tt,players:pl,updated:Date.now()});
-                if(ok){setSyncStatus('ok');setSyncMsg('✅ Data pushed! All phones will now sync.');localStorage.setItem('gw_pushed','1');}
-                else{setSyncStatus('bad');setSyncMsg('❌ Push failed. Check your token.');}
+                if(ok){
+                  setSyncStatus('ok');
+                  setSyncMsg('✅ Pushed '+pl.length+' players & '+tt.length+' tee times. Others can now log in.');
+                  localStorage.setItem('gw_pushed','1');
+                } else {
+                  setSyncStatus('bad');setSyncMsg('❌ Push failed. Check your token.');
+                }
               }}>Push Data to Cloud ☁️</button>
             </div>
           </div>
