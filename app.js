@@ -389,6 +389,7 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
             {(live.guests||[]).map(g=>{
               const ttlYes=Object.values(rsvps).filter(r=>r==='yes').length+(live.guests||[]).filter(x=>x.rsvp==='yes').length;
               const gFull=ttlYes>=4;
+              const canChangeGuest=canManagePlayers||g.createdBy===currentUser.id;
               return(
                 <div className="rsvp-row" key={g.id} style={{background:'#fffdf0',borderColor:'#ffd166'}}>
                   <div className="rsvp-av" style={{background:'#f0ad00'}}>{g.name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}</div>
@@ -396,10 +397,13 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
                     <div className="rsvp-name">{g.name} <span style={{fontSize:'.6rem',background:'#fff3cd',color:'#856404',padding:'1px 6px',borderRadius:10,fontWeight:700,border:'1px solid #ffd166'}}>GUEST</span></div>
                     <div className="rsvp-email">Temporary player</div>
                   </div>
-                  <div style={{display:'flex',gap:'.3rem',flexShrink:0}}>
-                    <button onClick={()=>onGuestRsvp(live.id,g.id,'yes')} disabled={gFull&&g.rsvp!=='yes'} style={{padding:'.25rem .5rem',border:`1.5px solid ${g.rsvp==='yes'?'#276228':'#ddd'}`,borderRadius:6,background:g.rsvp==='yes'?'#edf7ee':'#fff',color:g.rsvp==='yes'?'#276228':'#555',fontSize:'.72rem',fontWeight:700,cursor:gFull&&g.rsvp!=='yes'?'not-allowed':'pointer',opacity:gFull&&g.rsvp!=='yes'?.5:1}}>✅ In</button>
-                    <button onClick={()=>onGuestRsvp(live.id,g.id,'no')} style={{padding:'.25rem .5rem',border:`1.5px solid ${g.rsvp==='no'?'#c62828':'#ddd'}`,borderRadius:6,background:g.rsvp==='no'?'#fce8e6':'#fff',color:g.rsvp==='no'?'#c62828':'#555',fontSize:'.72rem',fontWeight:700,cursor:'pointer'}}>❌ Out</button>
-                  </div>
+                  {canChangeGuest
+                    ?<div style={{display:'flex',gap:'.3rem',flexShrink:0}}>
+                      <button onClick={()=>onGuestRsvp(live.id,g.id,'yes')} disabled={gFull&&g.rsvp!=='yes'} style={{padding:'.25rem .5rem',border:`1.5px solid ${g.rsvp==='yes'?'#276228':'#ddd'}`,borderRadius:6,background:g.rsvp==='yes'?'#edf7ee':'#fff',color:g.rsvp==='yes'?'#276228':'#555',fontSize:'.72rem',fontWeight:700,cursor:gFull&&g.rsvp!=='yes'?'not-allowed':'pointer',opacity:gFull&&g.rsvp!=='yes'?.5:1}}>✅ In</button>
+                      <button onClick={()=>onGuestRsvp(live.id,g.id,'no')} style={{padding:'.25rem .5rem',border:`1.5px solid ${g.rsvp==='no'?'#c62828':'#ddd'}`,borderRadius:6,background:g.rsvp==='no'?'#fce8e6':'#fff',color:g.rsvp==='no'?'#c62828':'#555',fontSize:'.72rem',fontWeight:700,cursor:'pointer'}}>❌ Out</button>
+                    </div>
+                    :<span className={`badge ${g.rsvp||'pending'}`}>{g.rsvp==='yes'?'✅ In':g.rsvp==='no'?'❌ Out':'⏳ Pending'}</span>
+                  }
                 </div>
               );
             })}
@@ -507,8 +511,8 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
               </div>
             )}
             <div style={{display:'flex',gap:'.5rem'}}>
-              <input type="text" placeholder="Guest name" value={guestName} onChange={e=>setGuestName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&guestName.trim()){setGuests(prev=>[...prev,{id:'guest_'+uid(),name:guestName.trim(),rsvp:null}]);setGuestName('');}}} style={{flex:1,padding:'.6rem .85rem',border:'1px solid var(--border)',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.86rem',background:'var(--surface)',outline:'none'}}/>
-              <button className="btn-s" onClick={()=>{if(guestName.trim()){setGuests(prev=>[...prev,{id:'guest_'+uid(),name:guestName.trim(),rsvp:null}]);setGuestName('');}}}>+ Add</button>
+              <input type="text" placeholder="Guest name" value={guestName} onChange={e=>setGuestName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&guestName.trim()){setGuests(prev=>[...prev,{id:'guest_'+uid(),name:guestName.trim(),rsvp:null,createdBy:currentUser.id}]);setGuestName('');}}} style={{flex:1,padding:'.6rem .85rem',border:'1px solid var(--border)',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.86rem',background:'var(--surface)',outline:'none'}}/>
+              <button className="btn-s" onClick={()=>{if(guestName.trim()){setGuests(prev=>[...prev,{id:'guest_'+uid(),name:guestName.trim(),rsvp:null,createdBy:currentUser.id}]);setGuestName('');}}}>+ Add</button>
             </div>
           </div>
         )}
@@ -851,9 +855,37 @@ function App(){
   const[showSettings,setShowSettings]=useState(false);
   const[toastMsg,setToastMsg]=useState('');
   const[toastType,setToastType]=useState('');
+  const[syncing,setSyncing]=useState(false);
   const tmr=useRef(null);
+  const touchStartY=useRef(0);
   const isAdmin=currentUser?.role==='admin';
   const canManagePlayers=isAdmin||currentUser?.role==='manager';
+
+  // Pull-to-refresh handler
+  const doRefresh=async()=>{
+    if(syncing||!isSyncConfigured())return;
+    setSyncing(true);
+    try{
+      const data=await syncRead();
+      if(data){
+        if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
+        if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+      }
+    }catch{}
+    setSyncing(false);
+  };
+
+  // Touch events for pull-to-refresh
+  useEffect(()=>{
+    const onTouchStart=e=>{touchStartY.current=e.touches[0].clientY;};
+    const onTouchEnd=e=>{
+      const diff=e.changedTouches[0].clientY-touchStartY.current;
+      if(diff>80&&window.scrollY===0)doRefresh();
+    };
+    document.addEventListener('touchstart',onTouchStart,{passive:true});
+    document.addEventListener('touchend',onTouchEnd,{passive:true});
+    return()=>{document.removeEventListener('touchstart',onTouchStart);document.removeEventListener('touchend',onTouchEnd);};
+  },[syncing]);
 
   useEffect(()=>{saveTeeTimes(teeTimes);pushSync(teeTimes,players);},[teeTimes]);
   useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session');},[currentUser]);
@@ -954,6 +986,7 @@ function App(){
         <div className="nav-tabs">{TABS.map(t=><button key={t.id} className={`ntab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.label}</button>)}</div>
         <div className="nav-right">
           <div className="nav-dot"/>
+          {syncing&&<span style={{fontSize:'.7rem',color:'var(--text3)',fontFamily:'Syne,sans-serif'}}>⏳</span>}
           {canManagePlayers&&<button className="nav-gear" onClick={()=>setShowSettings(true)}>⚙️</button>}
           <div className="nav-avatar-btn" onClick={()=>setTab('profile')}>{currentUser.photo?<img src={currentUser.photo} alt={currentUser.name}/>:<div className="av-letter" style={{background:avColor(currentUser.name||''),width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'.68rem',fontWeight:700,color:'#fff',borderRadius:'50%'}}>{initials(currentUser.name||currentUser.email)}</div>}</div>
           <button onClick={handleLogout} style={{background:'transparent',border:'1px solid #d0d0ce',color:'#999',padding:'.35rem .8rem',borderRadius:20,fontFamily:'Syne,sans-serif',fontSize:'.68rem',fontWeight:600,cursor:'pointer',whiteSpace:'nowrap'}} onMouseEnter={e=>{e.currentTarget.style.color='#d93025';e.currentTarget.style.borderColor='#ef9a9a';}} onMouseLeave={e=>{e.currentTarget.style.color='#999';e.currentTarget.style.borderColor='#d0d0ce';}}>Sign Out</button>
