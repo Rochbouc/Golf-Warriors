@@ -869,7 +869,26 @@ function App(){
     const params=new URLSearchParams(window.location.search);
     const openId=params.get('open');
     if(openId){window.history.replaceState({},'',window.location.pathname);const t=loadTeeTimes().find(t=>t.id===openId);if(t)setDetailTee(t);}
-    if(isSyncConfigured()){syncRead().then(data=>{if(!data)return;if(data.teeTimes?.length){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}if(data.players?.length){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}}).catch(()=>{});}
+    // Pull fresh data from cloud on app load
+    if(isSyncConfigured()){
+      syncRead().then(data=>{
+        if(!data)return;
+        if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
+        if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+      }).catch(()=>{});
+    }
+    // Also pull when user returns to the app (tab visibility)
+    const onVisible=()=>{
+      if(document.visibilityState==='visible'&&isSyncConfigured()){
+        syncRead().then(data=>{
+          if(!data)return;
+          if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
+          if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+        }).catch(()=>{});
+      }
+    };
+    document.addEventListener('visibilitychange',onVisible);
+    return()=>document.removeEventListener('visibilitychange',onVisible);
   },[]);
 
   useEffect(()=>{
@@ -879,7 +898,18 @@ function App(){
   },[]);
 
   const toast=(msg,type='ok')=>{setToastMsg(msg);setToastType(type);clearTimeout(tmr.current);tmr.current=setTimeout(()=>setToastMsg(''),3500);};
-  const handleLogin=user=>{setCurrentUser(user);setTab('dashboard');};
+  const handleLogin=user=>{
+    setCurrentUser(user);
+    setTab('dashboard');
+    // Pull latest data from cloud right after login
+    if(isSyncConfigured()){
+      syncRead().then(data=>{
+        if(!data)return;
+        if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
+        if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+      }).catch(()=>{});
+    }
+  };
   const handleLogout=()=>{setCurrentUser(null);localStorage.removeItem('gw_session');};
   const handleSaveTee=tee=>{setTeeTimes(prev=>{const idx=prev.findIndex(t=>t.id===tee.id);return idx>=0?prev.map(t=>t.id===tee.id?tee:t):[...prev,tee];});setEditTee(null);setBookDate(null);setTab('dashboard');};
   const MAX=4;
