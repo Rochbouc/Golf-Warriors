@@ -25,7 +25,6 @@ const SEED_PLAYERS=[
   {id:'p9',name:'Roch Boucher',email:'boucher.roch@gmail.com',password:'golf',photo:null,role:'manager'},
   {id:'p10',name:'Stéphane Lagacé',email:'stephane.lagace@gmail.com',password:'golf',photo:null,role:'manager'},
   {id:'p12',name:'Alain Malenfant',email:'alain.malenfant@architects4.ca',password:'golf',photo:null,role:'player'},
-  {id:'p13',name:'Louis-Philippe Boucher',email:'boucherlouisp@gmail.com',password:'golf',photo:null,role:'player'},
 ];
 const ADMIN={id:'admin',name:'Admin',email:'admin@golfwarriors.com',password:'golf',photo:null,role:'admin'};
 const SEED_TT=[];
@@ -81,7 +80,7 @@ async function pushSync(tt,pl){
 
 /* ── STORAGE ── */
 function loadPlayers(){
-  const REMOVED_IDS=['p1','p8','p11']; // Chris Leger, Lagace, Jacques Bourgeois — removed from app
+  const REMOVED_IDS=['p1','p8','p11','p13']; // Chris Leger, Lagace, Jacques Bourgeois, Louis-Philippe — removed
   const s=localStorage.getItem('gw_players');
   if(s){
     let p=JSON.parse(s);
