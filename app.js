@@ -689,7 +689,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
 }
 
 /* ── DASHBOARD ── */
-function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManagePlayers}){
+function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManagePlayers,onPushCloud}){
   const upcoming=teeTimes.filter(isUpcoming);
   return(
     <div className="page">
@@ -697,6 +697,13 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManage
         <div className="ph-left"><div className="ph-eyebrow">Golf Tee Time Planner</div><h1>Upcoming Rounds</h1></div>
         <button className="btn-p" onClick={onNew}>+ Book Tee Time</button>
       </div>
+      {canManagePlayers&&isSyncConfigured()&&(
+        <div style={{marginBottom:'1rem',textAlign:'right'}}>
+          <button onClick={onPushCloud} style={{background:'#276228',color:'#fff',border:'none',padding:'.4rem .9rem',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.75rem',fontWeight:700,cursor:'pointer'}}>
+            ☁️ Push to Cloud
+          </button>
+        </div>
+      )}
       <Stats teeTimes={teeTimes} players={players}/>
 
       {/* One-time sync push — only shown once until pushed */}
@@ -915,7 +922,15 @@ function App(){
     setTab('dashboard');
   };
   const handleLogout=()=>{setCurrentUser(null);localStorage.removeItem('gw_session');};
-  const handleSaveTee=tee=>{setTeeTimes(prev=>{const idx=prev.findIndex(t=>t.id===tee.id);return idx>=0?prev.map(t=>t.id===tee.id?tee:t):[...prev,tee];});setEditTee(null);setBookDate(null);setTab('dashboard');};
+  const handleSaveTee=tee=>{
+    setTeeTimes(prev=>{
+      const idx=prev.findIndex(t=>t.id===tee.id);
+      const next=idx>=0?prev.map(t=>t.id===tee.id?tee:t):[...prev,tee];
+      pushSync(next,players);
+      return next;
+    });
+    setEditTee(null);setBookDate(null);setTab('dashboard');
+  };
   const MAX=4;
   const handleRsvp=(teeId,playerId,answer)=>{
     const tee=teeTimes.find(t=>t.id===teeId);if(!tee)return;
@@ -923,7 +938,7 @@ function App(){
     const yesCount=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length+gYes;
     const alreadyIn=(tee.rsvps||{})[playerId]==='yes';
     if(answer==='yes'&&!alreadyIn&&yesCount>=MAX){toast('⛳ Tee time is full (4/4)! Check the next tee time.','err');return;}
-    setTeeTimes(prev=>prev.map(t=>t.id===teeId?{...t,rsvps:{...t.rsvps,[playerId]:answer}}:t));
+    setTeeTimes(prev=>{const next=prev.map(t=>t.id===teeId?{...t,rsvps:{...t.rsvps,[playerId]:answer}}:t);pushSync(next,players);return next;});
     toast(answer==='yes'?"You're IN! ⛳":'Marked as out ❌');
   };
   const handleGuestRsvp=(teeId,guestId,answer)=>{
@@ -932,10 +947,10 @@ function App(){
     const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
     const guest=(tee.guests||[]).find(g=>g.id===guestId);
     if(answer==='yes'&&guest?.rsvp!=='yes'&&rYes+gYes>=MAX){toast('⛳ Tee time is full (4/4)!','err');return;}
-    setTeeTimes(prev=>prev.map(t=>t.id!==teeId?t:{...t,guests:(t.guests||[]).map(g=>g.id===guestId?{...g,rsvp:answer}:g)}));
+    setTeeTimes(prev=>{const next=prev.map(t=>t.id!==teeId?t:{...t,guests:(t.guests||[]).map(g=>g.id===guestId?{...g,rsvp:answer}:g)});pushSync(next,players);return next;});
     toast(answer==='yes'?`${guest?.name} is IN! ⛳`:`${guest?.name} is OUT ❌`);
   };
-  const handleDelete=id=>{if(!confirm('Delete this tee time?'))return;setTeeTimes(p=>p.filter(t=>t.id!==id));toast('Deleted.');};
+  const handleDelete=id=>{if(!confirm('Delete this tee time?'))return;setTeeTimes(prev=>{const next=prev.filter(t=>t.id!==id);pushSync(next,players);return next;});toast('Deleted.');};
   const handleAddPlayer=p=>{const u=[...players,p];setPlayers(u);savePlayers(u);pushSync(teeTimes,u);toast(`${p.name} added!`);};
   const handleUpdatePlayer=u=>{const p=players.map(x=>x.id===u.id?u:x);setPlayers(p);savePlayers(p);pushSync(teeTimes,p);if(currentUser.id===u.id)setCurrentUser(u);};
   const handleDeletePlayer=id=>{const p=players.filter(x=>x.id!==id);setPlayers(p);savePlayers(p);pushSync(teeTimes,p);};
@@ -980,7 +995,7 @@ function App(){
       </nav>
 
       {tab==='loading'&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',flexDirection:'column',gap:'1rem'}}><div style={{fontSize:'2rem'}}>⛳</div><div style={{fontFamily:'Syne,sans-serif',fontSize:'.9rem',color:'var(--text3)'}}>Loading…</div></div>}
-      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
+      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} canManagePlayers={canManagePlayers} onPushCloud={async()=>{const ok=await syncWrite({teeTimes,players,updated:Date.now()});toast(ok?'☁️ Pushed to cloud! All phones will sync.':'❌ Push failed.',ok?'ok':'err');}}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard');}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee');}} onNew={d=>{setEditTee(null);setBookDate(d);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast} canManagePlayers={canManagePlayers}/>}
