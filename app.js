@@ -794,7 +794,17 @@ function SettingsModal({onClose}){
               <div><div className="settings-label">Anon/Public Key</div><input className="settings-input" type="text" placeholder="eyJ..." value={sbKey} onChange={e=>setSbKey(e.target.value)}/></div>
             </div>
             {syncStatus!=='idle'&&<div className={`settings-status ${syncStatus==='testing'?'idle':syncStatus}`} style={{marginBottom:'.5rem'}}>{syncStatus==='testing'?'⏳':''} {syncMsg}</div>}
-            <button className="btn-s" style={{fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Sync Connection</button>
+            <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+              <button className="btn-s" style={{fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Sync Connection</button>
+              <button className="btn-p" style={{fontSize:'.75rem'}} onClick={async()=>{
+                const tt=JSON.parse(localStorage.getItem('gw_tt')||'[]');
+                const pl=JSON.parse(localStorage.getItem('gw_players')||'[]');
+                setSyncStatus('testing');setSyncMsg('Pushing data…');
+                const ok=await syncWrite({teeTimes:tt,players:pl,updated:Date.now()});
+                if(ok){setSyncStatus('ok');setSyncMsg('✅ Pushed '+pl.length+' players & '+tt.length+' tee times!');}
+                else{setSyncStatus('bad');setSyncMsg('❌ Push failed.');}
+              }}>Push Data to Cloud ☁️</button>
+            </div>
           </div>
 
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
