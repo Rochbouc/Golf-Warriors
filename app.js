@@ -23,6 +23,7 @@ const SEED_PLAYERS=[
   {id:'p6',name:'Dave',email:'divadocan@gmail.com',password:'golf',photo:null,role:'player'},
   {id:'p7',name:'Marc LeBlanc',email:'marc@jomaeng.com',password:'golf',photo:null,role:'player'},
   {id:'p9',name:'Roch Boucher',email:'boucher.roch@gmail.com',password:'golf',photo:null,role:'manager'},
+  {id:'p10',name:'Stéphane Lagacé',email:'stephane.lagace@gmail.com',password:'golf',photo:null,role:'manager'},
   {id:'p12',name:'Alain Malenfant',email:'alain.malenfant@architects4.ca',password:'golf',photo:null,role:'player'},
   {id:'p13',name:'Louis-Philippe Boucher',email:'boucherlouisp@gmail.com',password:'golf',photo:null,role:'player'},
 ];
@@ -39,7 +40,7 @@ const isUpcoming=tee=>{if(!tee.date||!tee.time)return true;try{const d=new Date(
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
 /* ── SYNC via GitHub Repo Contents API ── */
-const GH_TOKEN = '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';
+const GH_TOKEN = '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';
 const GH_REPO  = 'rochbouc/Golf-Warriors';
 const GH_FILE  = 'data.json';
 const GH_RAW   = `https://raw.githubusercontent.com/${GH_REPO}/main/${GH_FILE}`;
