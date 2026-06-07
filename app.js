@@ -76,7 +76,7 @@ async function syncWrite(data){
 }
 async function pushSync(tt,pl){
   if(!isSyncConfigured())return;
-  syncWrite({teeTimes:tt,players:pl,updated:Date.now()}).catch(()=>{});
+  try{await syncWrite({teeTimes:tt,players:pl,updated:Date.now()});}catch(e){console.warn('pushSync error:',e);}
 }
 
 /* ── STORAGE ── */
@@ -887,7 +887,7 @@ function App(){
     return()=>{document.removeEventListener('touchstart',onTouchStart);document.removeEventListener('touchend',onTouchEnd);};
   },[syncing]);
 
-  useEffect(()=>{saveTeeTimes(teeTimes);pushSync(teeTimes,players);},[teeTimes]);
+  useEffect(()=>{saveTeeTimes(teeTimes);},[teeTimes]);
   useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session');},[currentUser]);
 
   useEffect(()=>{
@@ -940,13 +940,14 @@ function App(){
     setTab('dashboard');
   };
   const handleLogout=()=>{setCurrentUser(null);localStorage.removeItem('gw_session');};
-  const handleSaveTee=tee=>{
+  const handleSaveTee=async tee=>{
+    let next;
     setTeeTimes(prev=>{
       const idx=prev.findIndex(t=>t.id===tee.id);
-      const next=idx>=0?prev.map(t=>t.id===tee.id?tee:t):[...prev,tee];
-      pushSync(next,players);
+      next=idx>=0?prev.map(t=>t.id===tee.id?tee:t):[...prev,tee];
       return next;
     });
+    if(next)await pushSync(next,players);
     setEditTee(null);setBookDate(null);setTab('dashboard');
   };
   const MAX=4;
