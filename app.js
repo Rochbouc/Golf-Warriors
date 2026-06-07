@@ -39,42 +39,41 @@ const fmtTime=t=>{if(!t)return'—';const[h,m]=t.split(':').map(Number);return`$
 const isUpcoming=tee=>{if(!tee.date||!tee.time)return true;try{const d=new Date(tee.date+'T'+tee.time+':00');return isNaN(d.getTime())||d>=new Date();}catch{return true;}};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
-/* ── SYNC via GitHub Repo Contents API ── */
-const GH_TOKEN = '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';
-const GH_REPO  = 'rochbouc/Golf-Warriors';
-const GH_FILE  = 'data.json';
-const GH_RAW   = `https://raw.githubusercontent.com/${GH_REPO}/main/${GH_FILE}`;
-const GH_API   = `https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`;
+/* ── SYNC via Supabase ── */
+const SB_URL   = 'https://wzskaoaykkspkhybtsui.supabase.co';
+const SB_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6c2thb2F5a2tzcGtoeWJ0c3VpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4Mjg2NTEsImV4cCI6MjA5NjQwNDY1MX0.RFvev6UprtyVYxkslWq1S6w-Z4MfULfydzPmTCLaKRo';
+const SB_TABLE = 'golfwarriors';
 
-function isSyncConfigured(){return !!(GH_TOKEN&&GH_REPO);}
-
+function isSyncConfigured(){
+  const c=getSyncConfig();
+  return !!(c.url&&c.key);
+}
+function getSyncConfig(){
+  const saved=JSON.parse(localStorage.getItem('gw_sb')||'{"url":"","key":""}');
+  return {url:SB_URL||saved.url||'', key:SB_KEY||saved.key||''};
+}
 async function syncRead(){
+  const c=getSyncConfig();if(!c.url||!c.key)return null;
   try{
-    // Read raw file directly — no auth needed, no CORS issues
-    const r=await fetch(GH_RAW+'?t='+Date.now());
+    const r=await fetch(`${c.url}/rest/v1/${SB_TABLE}?id=eq.1&select=data`,{
+      headers:{'apikey':c.key,'Authorization':'Bearer '+c.key}
+    });
     if(!r.ok)return null;
-    return await r.json();
+    const rows=await r.json();
+    return rows&&rows[0]?rows[0].data:null;
   }catch(e){console.warn('syncRead error:',e);return null;}
 }
-
 async function syncWrite(data){
+  const c=getSyncConfig();if(!c.url||!c.key)return false;
   try{
-    // Get current file SHA (needed for update)
-    const meta=await fetch(GH_API,{headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}});
-    let sha=null;
-    if(meta.ok){const m=await meta.json();sha=m.sha;}
-    const body={message:'sync',content:btoa(unescape(encodeURIComponent(JSON.stringify(data))))};
-    if(sha)body.sha=sha;
-    const r=await fetch(GH_API,{
-      method:'PUT',
-      headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
-      body:JSON.stringify(body)
+    const r=await fetch(`${c.url}/rest/v1/${SB_TABLE}`,{
+      method:'POST',
+      headers:{'apikey':c.key,'Authorization':'Bearer '+c.key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({id:1,data})
     });
-    if(!r.ok){const e=await r.json().catch(()=>({}));console.warn('syncWrite failed:',r.status,e.message);return false;}
-    return true;
+    return r.ok||r.status===201||r.status===200;
   }catch(e){console.warn('syncWrite error:',e);return false;}
 }
-
 async function pushSync(tt,pl){
   if(!isSyncConfigured())return;
   syncWrite({teeTimes:tt,players:pl,updated:Date.now()}).catch(()=>{});
@@ -741,6 +740,9 @@ function SettingsModal({onClose}){
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
+  const savedSB=getSyncConfig();
+  const[sbUrl,setSbUrl]=useState(savedSB.url||'');
+  const[sbKey,setSbKey]=useState(savedSB.key||'');
   const[syncStatus,setSyncStatus]=useState('idle');
   const[syncMsg,setSyncMsg]=useState('');
   const[ejsStatus,setEjsStatus]=useState('idle');
@@ -750,22 +752,22 @@ function SettingsModal({onClose}){
     onClose(true);
   };
   const testSync=async()=>{
-    setSyncStatus('testing');setSyncMsg('Testing read…');
+    const url=sbUrl.trim();const key=sbKey.trim();
+    if(!url||!key){setSyncStatus('bad');setSyncMsg('Enter URL and Key first.');return;}
+    setSyncStatus('testing');setSyncMsg('Testing…');
     try{
-      // Test read via raw URL
-      const r=await fetch(GH_RAW+'?t='+Date.now());
-      if(!r.ok){setSyncStatus('bad');setSyncMsg('❌ Read failed ('+r.status+'). File may not exist yet in repo.');return;}
-      setSyncMsg('Testing write…');
-      // Test write via API
-      const meta=await fetch(GH_API,{headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}});
-      let sha=null;
-      if(meta.ok){const m=await meta.json();sha=m.sha;}
-      const testData={test:true,ts:Date.now()};
-      const body={message:'test',content:btoa(unescape(encodeURIComponent(JSON.stringify(testData))))};
-      if(sha)body.sha=sha;
-      const w=await fetch(GH_API,{method:'PUT',headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(!w.ok){const e=await w.json().catch(()=>({}));setSyncStatus('bad');setSyncMsg('❌ Write failed ('+w.status+'): '+(e.message||'Check token'));return;}
-      setSyncStatus('ok');setSyncMsg('✅ Read & Write both work!');
+      const r=await fetch(`${url}/rest/v1/${SB_TABLE}?id=eq.1&select=data`,{
+        headers:{'apikey':key,'Authorization':'Bearer '+key}
+      });
+      if(!r.ok){setSyncStatus('bad');setSyncMsg('❌ Failed ('+r.status+'). Check URL and key.');return;}
+      // Test write
+      const w=await fetch(`${url}/rest/v1/${SB_TABLE}`,{
+        method:'POST',
+        headers:{'apikey':key,'Authorization':'Bearer '+key,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+        body:JSON.stringify({id:1,data:{test:true}})
+      });
+      if(!w.ok){setSyncStatus('bad');setSyncMsg('❌ Write failed ('+w.status+')');return;}
+      setSyncStatus('ok');setSyncMsg('✅ Connected! Sync is working.');
     }catch(e){setSyncStatus('bad');setSyncMsg('❌ Error: '+e.message);}
   };
   const testEJS=async()=>{
@@ -786,7 +788,11 @@ function SettingsModal({onClose}){
               <div className="settings-label" style={{margin:0}}>☁️ Cloud Sync</div>
               {syncStatus==='ok'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Working</span>:syncStatus==='bad'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#fce8e6',color:'#c62828',padding:'2px 8px',borderRadius:20}}>✗ Error</span>:<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Configured</span>}
             </div>
-            <p className="hint" style={{marginBottom:'.75rem'}}>Syncs all data automatically across every phone.</p>
+            <p className="hint" style={{marginBottom:'.75rem'}}>Free at <a href="https://supabase.com" target="_blank" style={{color:'var(--text)',fontWeight:600,textDecoration:'underline'}}>supabase.com</a> — sign up, create a project, then get the URL and anon key from Project Settings → API.</p>
+            <div style={{display:'flex',flexDirection:'column',gap:'.6rem',marginBottom:'.75rem'}}>
+              <div><div className="settings-label">Project URL</div><input className="settings-input" type="url" placeholder="https://xxxx.supabase.co" value={sbUrl} onChange={e=>setSbUrl(e.target.value)}/></div>
+              <div><div className="settings-label">Anon/Public Key</div><input className="settings-input" type="text" placeholder="eyJ..." value={sbKey} onChange={e=>setSbKey(e.target.value)}/></div>
+            </div>
             {syncStatus!=='idle'&&<div className={`settings-status ${syncStatus==='testing'?'idle':syncStatus}`} style={{marginBottom:'.5rem'}}>{syncStatus==='testing'?'⏳':''} {syncMsg}</div>}
             <button className="btn-s" style={{fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Sync Connection</button>
           </div>
