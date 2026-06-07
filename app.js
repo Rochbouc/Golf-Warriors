@@ -59,26 +59,26 @@ function isSyncConfigured(){
 async function syncRead(){
   const c=getSyncConfig();if(!c.gistId)return null;
   try{
-    // Public gist — no token needed for reading
-    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{
-      headers:{'Accept':'application/vnd.github+json'}
-    });
-    if(!r.ok)return null;
+    const headers={'Accept':'application/vnd.github+json'};
+    if(c.token)headers['Authorization']='Bearer '+c.token;
+    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{headers});
+    if(!r.ok){console.warn('syncRead failed:',r.status);return null;}
     const d=await r.json();
     const content=d.files&&d.files['golf-warriors.json']&&d.files['golf-warriors.json'].content;
     return content?JSON.parse(content):null;
-  }catch{return null;}
+  }catch(e){console.warn('syncRead error:',e);return null;}
 }
 async function syncWrite(data){
   const c=getSyncConfig();if(!c.gistId||!c.token)return false;
   try{
-    await fetch(`https://api.github.com/gists/${c.gistId}`,{
+    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{
       method:'PATCH',
       headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+c.token,'Content-Type':'application/json'},
       body:JSON.stringify({files:{'golf-warriors.json':{content:JSON.stringify(data)}}})
     });
+    if(!r.ok){console.warn('syncWrite failed:',r.status,await r.text());return false;}
     return true;
-  }catch{return false;}
+  }catch(e){console.warn('syncWrite error:',e);return false;}
 }
 async function pushSync(tt,pl){if(isSyncConfigured())syncWrite({teeTimes:tt,players:pl,updated:Date.now()}).catch(()=>{});}
 
@@ -689,7 +689,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
 }
 
 /* ── DASHBOARD ── */
-function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManagePlayers,onPushCloud}){
+function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManagePlayers}){
   const upcoming=teeTimes.filter(isUpcoming);
   return(
     <div className="page">
@@ -697,13 +697,6 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManage
         <div className="ph-left"><div className="ph-eyebrow">Golf Tee Time Planner</div><h1>Upcoming Rounds</h1></div>
         <button className="btn-p" onClick={onNew}>+ Book Tee Time</button>
       </div>
-      {canManagePlayers&&isSyncConfigured()&&(
-        <div style={{marginBottom:'1rem',textAlign:'right'}}>
-          <button onClick={onPushCloud} style={{background:'#276228',color:'#fff',border:'none',padding:'.4rem .9rem',borderRadius:'var(--r-sm)',fontFamily:'Syne,sans-serif',fontSize:'.75rem',fontWeight:700,cursor:'pointer'}}>
-            ☁️ Push to Cloud
-          </button>
-        </div>
-      )}
       <Stats teeTimes={teeTimes} players={players}/>
 
       {/* One-time sync push — only shown once until pushed */}
@@ -995,7 +988,7 @@ function App(){
       </nav>
 
       {tab==='loading'&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',flexDirection:'column',gap:'1rem'}}><div style={{fontSize:'2rem'}}>⛳</div><div style={{fontFamily:'Syne,sans-serif',fontSize:'.9rem',color:'var(--text3)'}}>Loading…</div></div>}
-      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} canManagePlayers={canManagePlayers} onPushCloud={async()=>{const ok=await syncWrite({teeTimes,players,updated:Date.now()});toast(ok?'☁️ Pushed to cloud! All phones will sync.':'❌ Push failed.',ok?'ok':'err');}}/>}
+      {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard');}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee');}} onNew={d=>{setEditTee(null);setBookDate(d);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
       {tab==='players'&&canManagePlayers&&<PlayersTab players={players} teeTimes={teeTimes} onUpdatePlayer={handleUpdatePlayer} onDeletePlayer={handleDeletePlayer} toast={toast} canManagePlayers={canManagePlayers}/>}
