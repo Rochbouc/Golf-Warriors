@@ -80,7 +80,11 @@ async function syncWrite(data){
     return true;
   }catch(e){console.warn('syncWrite error:',e);return false;}
 }
-async function pushSync(tt,pl){if(isSyncConfigured())syncWrite({teeTimes:tt,players:pl,updated:Date.now()}).catch(()=>{});}
+async function pushSync(tt,pl){
+  if(!isSyncConfigured())return;
+  const ok=await syncWrite({teeTimes:tt,players:pl,updated:Date.now()});
+  if(!ok)console.warn('pushSync failed — token may be expired');
+}
 
 /* ── STORAGE ── */
 function loadPlayers(){
@@ -757,14 +761,27 @@ function SettingsModal({onClose}){
   };
   const testSync=async()=>{
     if(!gistId){setSyncStatus('bad');setSyncMsg('Enter the Gist ID first.');return;}
-    setSyncStatus('testing');setSyncMsg('Testing…');
+    setSyncStatus('testing');setSyncMsg('Testing read…');
     try{
-      // Test read without token (public gist)
-      const r=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{
-        headers:{'Accept':'application/vnd.github+json'}
+      const token=gistToken.trim()||GIST_TOKEN;
+      const headers={'Accept':'application/vnd.github+json'};
+      if(token)headers['Authorization']='Bearer '+token;
+      // Test READ
+      const r=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{headers});
+      if(!r.ok){setSyncStatus('bad');setSyncMsg('❌ Read failed ('+r.status+'). Check Gist ID and token.');return;}
+      // Test WRITE
+      setSyncMsg('Testing write…');
+      const w=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{
+        method:'PATCH',
+        headers:{...headers,'Content-Type':'application/json'},
+        body:JSON.stringify({description:'Golf Warriors sync test'})
       });
-      if(r.ok){setSyncStatus('ok');setSyncMsg('✅ Connected! Sync is working.');}
-      else{setSyncStatus('bad');setSyncMsg('❌ Failed ('+r.status+'). Check the Gist ID.');}
+      if(!w.ok){
+        const err=await w.json().catch(()=>({}));
+        setSyncStatus('bad');setSyncMsg('❌ Write failed ('+w.status+'): '+(err.message||'Token may be expired or missing gist scope'));
+        return;
+      }
+      setSyncStatus('ok');setSyncMsg('✅ Read & Write both work! Sync is fully operational.');
     }catch(e){setSyncStatus('bad');setSyncMsg('❌ Error: '+e.message);}
   };
   const testEJS=async()=>{
