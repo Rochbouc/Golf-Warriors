@@ -845,7 +845,7 @@ function SettingsModal({onClose}){
 
 /* ── APP ── */
 function App(){
-  const[currentUser,setCurrentUser]=useState(null);
+  const[currentUser,setCurrentUser]=useState(()=>{const s=localStorage.getItem('gw_session');return s?JSON.parse(s):null;});
   const[tab,setTab]=useState('dashboard');
   const[teeTimes,setTeeTimes]=useState(loadTeeTimes);
   const[players,setPlayers]=useState(loadPlayers);
@@ -888,7 +888,7 @@ function App(){
   },[syncing]);
 
   useEffect(()=>{saveTeeTimes(teeTimes);},[teeTimes]);
-  useEffect(()=>{if(!currentUser)localStorage.removeItem('gw_session');},[currentUser]);
+  useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session');},[currentUser]);
 
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search);
