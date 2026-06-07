@@ -38,52 +38,45 @@ const fmtTime=t=>{if(!t)return'—';const[h,m]=t.split(':').map(Number);return`$
 const isUpcoming=tee=>{if(!tee.date||!tee.time)return true;try{const d=new Date(tee.date+'T'+tee.time+':00');return isNaN(d.getTime())||d>=new Date();}catch{return true;}};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2);
 
-/* ── JSONBIN SYNC ── */
-/* ─────────────────────────────────────────
-   GITHUB GIST SYNC — auto-configured
-   ───────────────────────────────────────── */
-const GIST_ID    = '1e52836898f813e73ab344fbecb2b34f';
-const GIST_TOKEN = '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';
+/* ── SYNC via GitHub Repo Contents API ── */
+const GH_TOKEN = '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';
+const GH_REPO  = 'rochbouc/Golf-Warriors';
+const GH_FILE  = 'data.json';
+const GH_RAW   = `https://raw.githubusercontent.com/${GH_REPO}/main/${GH_FILE}`;
+const GH_API   = `https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`;
 
-function getSyncConfig(){
-  const saved=JSON.parse(localStorage.getItem('gw_sync')||'{"gistId":"","token":""}');
-  return {
-    gistId: GIST_ID  || saved.gistId || '',
-    token:  GIST_TOKEN || saved.token  || '',
-  };
-}
-function isSyncConfigured(){
-  if(GIST_ID&&GIST_TOKEN)return true;
-  const c=getSyncConfig();return !!(c.gistId&&c.token);
-}
+function isSyncConfigured(){return !!(GH_TOKEN&&GH_REPO);}
+
 async function syncRead(){
-  const c=getSyncConfig();if(!c.gistId)return null;
   try{
-    const headers={'Accept':'application/vnd.github+json'};
-    if(c.token)headers['Authorization']='Bearer '+c.token;
-    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{headers});
-    if(!r.ok){console.warn('syncRead failed:',r.status);return null;}
-    const d=await r.json();
-    const content=d.files&&d.files['golf-warriors.json']&&d.files['golf-warriors.json'].content;
-    return content?JSON.parse(content):null;
+    // Read raw file directly — no auth needed, no CORS issues
+    const r=await fetch(GH_RAW+'?t='+Date.now());
+    if(!r.ok)return null;
+    return await r.json();
   }catch(e){console.warn('syncRead error:',e);return null;}
 }
+
 async function syncWrite(data){
-  const c=getSyncConfig();if(!c.gistId||!c.token)return false;
   try{
-    const r=await fetch(`https://api.github.com/gists/${c.gistId}`,{
-      method:'PATCH',
-      headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+c.token,'Content-Type':'application/json'},
-      body:JSON.stringify({files:{'golf-warriors.json':{content:JSON.stringify(data)}}})
+    // Get current file SHA (needed for update)
+    const meta=await fetch(GH_API,{headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}});
+    let sha=null;
+    if(meta.ok){const m=await meta.json();sha=m.sha;}
+    const body={message:'sync',content:btoa(unescape(encodeURIComponent(JSON.stringify(data))))};
+    if(sha)body.sha=sha;
+    const r=await fetch(GH_API,{
+      method:'PUT',
+      headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+      body:JSON.stringify(body)
     });
-    if(!r.ok){console.warn('syncWrite failed:',r.status,await r.text());return false;}
+    if(!r.ok){const e=await r.json().catch(()=>({}));console.warn('syncWrite failed:',r.status,e.message);return false;}
     return true;
   }catch(e){console.warn('syncWrite error:',e);return false;}
 }
+
 async function pushSync(tt,pl){
   if(!isSyncConfigured())return;
-  const ok=await syncWrite({teeTimes:tt,players:pl,updated:Date.now()});
-  if(!ok)console.warn('pushSync failed — token may be expired');
+  syncWrite({teeTimes:tt,players:pl,updated:Date.now()}).catch(()=>{});
 }
 
 /* ── STORAGE ── */
@@ -743,45 +736,35 @@ function History({teeTimes,players,currentUser,onOpen,onDelete,canManagePlayers}
 /* ── SETTINGS MODAL ── */
 function SettingsModal({onClose}){
   const saved=getEJSConfig();
-  const savedSync=getSyncConfig();
   const[pk,setPk]=useState(saved.publicKey||'');
   const[sid,setSid]=useState(saved.serviceId||'');
   const[tid,setTid]=useState(saved.templateId||'');
   const[appUrl,setAppUrl]=useState(saved.appUrl||'');
-  const[gistId,setGistId]=useState(savedSync.gistId||'');
-  const[gistToken,setGistToken]=useState(savedSync.token||'');
   const[syncStatus,setSyncStatus]=useState('idle');
   const[syncMsg,setSyncMsg]=useState('');
   const[ejsStatus,setEjsStatus]=useState('idle');
   const[ejsMsg,setEjsMsg]=useState('');
   const save=()=>{
     localStorage.setItem('ejs_cfg',JSON.stringify({publicKey:pk.trim(),serviceId:sid.trim(),templateId:tid.trim(),appUrl:appUrl.trim()}));
-    if(gistId.trim()&&gistToken.trim())localStorage.setItem('gw_sync',JSON.stringify({gistId:gistId.trim(),token:gistToken.trim()}));
     onClose(true);
   };
   const testSync=async()=>{
-    if(!gistId){setSyncStatus('bad');setSyncMsg('Enter the Gist ID first.');return;}
     setSyncStatus('testing');setSyncMsg('Testing read…');
     try{
-      const token=gistToken.trim()||GIST_TOKEN;
-      const headers={'Accept':'application/vnd.github+json'};
-      if(token)headers['Authorization']='Bearer '+token;
-      // Test READ
-      const r=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{headers});
-      if(!r.ok){setSyncStatus('bad');setSyncMsg('❌ Read failed ('+r.status+'). Check Gist ID and token.');return;}
-      // Test WRITE
+      // Test read via raw URL
+      const r=await fetch(GH_RAW+'?t='+Date.now());
+      if(!r.ok){setSyncStatus('bad');setSyncMsg('❌ Read failed ('+r.status+'). File may not exist yet in repo.');return;}
       setSyncMsg('Testing write…');
-      const w=await fetch(`https://api.github.com/gists/${gistId.trim()}`,{
-        method:'PATCH',
-        headers:{...headers,'Content-Type':'application/json'},
-        body:JSON.stringify({description:'Golf Warriors sync test'})
-      });
-      if(!w.ok){
-        const err=await w.json().catch(()=>({}));
-        setSyncStatus('bad');setSyncMsg('❌ Write failed ('+w.status+'): '+(err.message||'Token may be expired or missing gist scope'));
-        return;
-      }
-      setSyncStatus('ok');setSyncMsg('✅ Read & Write both work! Sync is fully operational.');
+      // Test write via API
+      const meta=await fetch(GH_API,{headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}});
+      let sha=null;
+      if(meta.ok){const m=await meta.json();sha=m.sha;}
+      const testData={test:true,ts:Date.now()};
+      const body={message:'test',content:btoa(unescape(encodeURIComponent(JSON.stringify(testData))))};
+      if(sha)body.sha=sha;
+      const w=await fetch(GH_API,{method:'PUT',headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!w.ok){const e=await w.json().catch(()=>({}));setSyncStatus('bad');setSyncMsg('❌ Write failed ('+w.status+'): '+(e.message||'Check token'));return;}
+      setSyncStatus('ok');setSyncMsg('✅ Read & Write both work!');
     }catch(e){setSyncStatus('bad');setSyncMsg('❌ Error: '+e.message);}
   };
   const testEJS=async()=>{
@@ -800,35 +783,11 @@ function SettingsModal({onClose}){
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
             <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.5rem'}}>
               <div className="settings-label" style={{margin:0}}>☁️ Cloud Sync</div>
-              {syncStatus==='ok'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Connected</span>:syncStatus==='bad'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#fce8e6',color:'#c62828',padding:'2px 8px',borderRadius:20}}>✗ Failed</span>:isSyncConfigured()?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Set</span>:<span style={{fontSize:'.65rem',fontWeight:700,background:'#fff3cd',color:'#856404',padding:'2px 8px',borderRadius:20}}>⚠️ Not set</span>}
+              {syncStatus==='ok'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Working</span>:syncStatus==='bad'?<span style={{fontSize:'.65rem',fontWeight:700,background:'#fce8e6',color:'#c62828',padding:'2px 8px',borderRadius:20}}>✗ Error</span>:<span style={{fontSize:'.65rem',fontWeight:700,background:'#edf7ee',color:'#276228',padding:'2px 8px',borderRadius:20}}>✓ Configured</span>}
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:'.6rem',marginBottom:'.75rem'}}>
-              <div>
-                <div className="settings-label">Gist ID</div>
-                <input className="settings-input" type="text" placeholder="1e52836898f813e73ab344fbecb2b34f" value={gistId} onChange={e=>setGistId(e.target.value)}/>
-              </div>
-              <div>
-                <div className="settings-label">GitHub Token</div>
-                <input className="settings-input" type="text" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false" placeholder="ghp_..." value={gistToken} onChange={e=>setGistToken(e.target.value)}/>
-              </div>
-            </div>
+            <p className="hint" style={{marginBottom:'.75rem'}}>Syncs all data automatically across every phone.</p>
             {syncStatus!=='idle'&&<div className={`settings-status ${syncStatus==='testing'?'idle':syncStatus}`} style={{marginBottom:'.5rem'}}>{syncStatus==='testing'?'⏳':''} {syncMsg}</div>}
-            <div style={{display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
-              <button className="btn-s" style={{fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Connection</button>
-              <button className="btn-p" style={{fontSize:'.75rem'}} onClick={async()=>{
-                const tt=JSON.parse(localStorage.getItem('gw_tt')||'[]');
-                const pl=JSON.parse(localStorage.getItem('gw_players')||'[]');
-                setSyncStatus('testing');setSyncMsg('Pushing '+pl.length+' players…');
-                const ok=await syncWrite({teeTimes:tt,players:pl,updated:Date.now()});
-                if(ok){
-                  setSyncStatus('ok');
-                  setSyncMsg('✅ Pushed '+pl.length+' players & '+tt.length+' tee times. Others can now log in.');
-                  localStorage.setItem('gw_pushed','1');
-                } else {
-                  setSyncStatus('bad');setSyncMsg('❌ Push failed. Check your token.');
-                }
-              }}>Push Data to Cloud ☁️</button>
-            </div>
+            <button className="btn-s" style={{fontSize:'.75rem'}} onClick={testSync} disabled={syncStatus==='testing'}>Test Sync Connection</button>
           </div>
 
           <div style={{marginBottom:'1.5rem',paddingBottom:'1.5rem',borderBottom:'1px solid var(--border)'}}>
