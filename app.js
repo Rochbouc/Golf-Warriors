@@ -845,7 +845,7 @@ function SettingsModal({onClose}){
 
 /* ── APP ── */
 function App(){
-  const[currentUser,setCurrentUser]=useState(()=>{const s=localStorage.getItem('gw_session');return s?JSON.parse(s):null;});
+  const[currentUser,setCurrentUser]=useState(null);
   const[tab,setTab]=useState('dashboard');
   const[teeTimes,setTeeTimes]=useState(loadTeeTimes);
   const[players,setPlayers]=useState(loadPlayers);
@@ -888,7 +888,7 @@ function App(){
   },[syncing]);
 
   useEffect(()=>{saveTeeTimes(teeTimes);},[teeTimes]);
-  useEffect(()=>{if(currentUser)localStorage.setItem('gw_session',JSON.stringify(currentUser));else localStorage.removeItem('gw_session');},[currentUser]);
+  useEffect(()=>{if(!currentUser)localStorage.removeItem('gw_session');},[currentUser]);
 
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search);
@@ -952,64 +952,55 @@ function App(){
   };
   const MAX=4;
   const handleRsvp=async(teeId,playerId,answer)=>{
-    if(answer==='yes'){
-      // Pull fresh data first to get accurate count
-      if(isSyncConfigured()){
+    // Always pull fresh data first to prevent race conditions
+    let currentTees=teeTimes;
+    if(isSyncConfigured()){
+      try{
         const data=await syncRead();
         if(data?.teeTimes){
-          const fresh=data.teeTimes.find(t=>t.id===teeId);
-          if(fresh){
-            const gYes=(fresh.guests||[]).filter(g=>g.rsvp==='yes').length;
-            const yesCount=Object.values(fresh.rsvps||{}).filter(r=>r==='yes').length+gYes;
-            const alreadyIn=(fresh.rsvps||{})[playerId]==='yes';
-            if(!alreadyIn&&yesCount>=MAX){
-              // Update local state with fresh data
-              setTeeTimes(prev=>prev.map(t=>t.id===teeId?fresh:t));
-              toast('⛳ Tee time is full (4/4)! Check the next tee time.','err');
-              return;
-            }
-          }
+          currentTees=data.teeTimes;
+          setTeeTimes(data.teeTimes);
+          localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));
         }
-      } else {
-        // No sync — use local state
-        const tee=teeTimes.find(t=>t.id===teeId);if(!tee)return;
-        const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
-        const yesCount=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length+gYes;
-        const alreadyIn=(tee.rsvps||{})[playerId]==='yes';
-        if(!alreadyIn&&yesCount>=MAX){toast('⛳ Tee time is full (4/4)! Check the next tee time.','err');return;}
-      }
+      }catch{}
     }
-    setTeeTimes(prev=>{const next=prev.map(t=>t.id===teeId?{...t,rsvps:{...t.rsvps,[playerId]:answer}}:t);pushSync(next,players);return next;});
+    const tee=currentTees.find(t=>t.id===teeId);
+    if(!tee)return;
+    const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
+    const yesCount=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length+gYes;
+    const alreadyIn=(tee.rsvps||{})[playerId]==='yes';
+    if(answer==='yes'&&!alreadyIn&&yesCount>=MAX){
+      toast('⛳ Tee time is full (4/4)! Check the next tee time.','err');return;
+    }
+    const next=currentTees.map(t=>t.id===teeId?{...t,rsvps:{...t.rsvps,[playerId]:answer}}:t);
+    setTeeTimes(next);
+    await pushSync(next,players);
     toast(answer==='yes'?"You're IN! ⛳":'Marked as out ❌');
   };
 
   const handleGuestRsvp=async(teeId,guestId,answer)=>{
-    if(answer==='yes'){
-      if(isSyncConfigured()){
+    let currentTees=teeTimes;
+    if(isSyncConfigured()){
+      try{
         const data=await syncRead();
         if(data?.teeTimes){
-          const fresh=data.teeTimes.find(t=>t.id===teeId);
-          if(fresh){
-            const rYes=Object.values(fresh.rsvps||{}).filter(r=>r==='yes').length;
-            const gYes=(fresh.guests||[]).filter(g=>g.rsvp==='yes').length;
-            const guest=(fresh.guests||[]).find(g=>g.id===guestId);
-            if(guest?.rsvp!=='yes'&&rYes+gYes>=MAX){
-              setTeeTimes(prev=>prev.map(t=>t.id===teeId?fresh:t));
-              toast('⛳ Tee time is full (4/4)!','err');return;
-            }
-          }
+          currentTees=data.teeTimes;
+          setTeeTimes(data.teeTimes);
+          localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));
         }
-      } else {
-        const tee=teeTimes.find(t=>t.id===teeId);if(!tee)return;
-        const rYes=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length;
-        const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
-        const guest=(tee.guests||[]).find(g=>g.id===guestId);
-        if(guest?.rsvp!=='yes'&&rYes+gYes>=MAX){toast('⛳ Tee time is full (4/4)!','err');return;}
-      }
+      }catch{}
     }
-    const tee=teeTimes.find(t=>t.id===teeId);
-    const guest=(tee?.guests||[]).find(g=>g.id===guestId);
-    setTeeTimes(prev=>{const next=prev.map(t=>t.id!==teeId?t:{...t,guests:(t.guests||[]).map(g=>g.id===guestId?{...g,rsvp:answer}:g)});pushSync(next,players);return next;});
+    const tee=currentTees.find(t=>t.id===teeId);
+    if(!tee)return;
+    const rYes=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length;
+    const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
+    const guest=(tee.guests||[]).find(g=>g.id===guestId);
+    if(answer==='yes'&&guest?.rsvp!=='yes'&&rYes+gYes>=MAX){
+      toast('⛳ Tee time is full (4/4)!','err');return;
+    }
+    const next=currentTees.map(t=>t.id!==teeId?t:{...t,guests:(t.guests||[]).map(g=>g.id===guestId?{...g,rsvp:answer}:g)});
+    setTeeTimes(next);
+    await pushSync(next,players);
     toast(answer==='yes'?`${guest?.name} is IN! ⛳`:`${guest?.name} is OUT ❌`);
   };
   const handleDelete=id=>{if(!confirm('Delete this tee time?'))return;setTeeTimes(prev=>{const next=prev.filter(t=>t.id!==id);pushSync(next,players);return next;});toast('Deleted.');};
