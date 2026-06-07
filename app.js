@@ -898,17 +898,21 @@ function App(){
   },[]);
 
   const toast=(msg,type='ok')=>{setToastMsg(msg);setToastType(type);clearTimeout(tmr.current);tmr.current=setTimeout(()=>setToastMsg(''),3500);};
-  const handleLogin=user=>{
+  const handleLogin=async user=>{
     setCurrentUser(user);
-    setTab('dashboard');
-    // Pull latest data from cloud right after login
+    setTab('loading');
+    // Pull latest data from cloud with 5-second timeout
     if(isSyncConfigured()){
-      syncRead().then(data=>{
-        if(!data)return;
-        if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
-        if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
-      }).catch(()=>{});
+      try{
+        const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),5000));
+        const data=await Promise.race([syncRead(),timeout]);
+        if(data){
+          if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
+          if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+        }
+      }catch{}
     }
+    setTab('dashboard');
   };
   const handleLogout=()=>{setCurrentUser(null);localStorage.removeItem('gw_session');};
   const handleSaveTee=tee=>{setTeeTimes(prev=>{const idx=prev.findIndex(t=>t.id===tee.id);return idx>=0?prev.map(t=>t.id===tee.id?tee:t):[...prev,tee];});setEditTee(null);setBookDate(null);setTab('dashboard');};
@@ -975,6 +979,7 @@ function App(){
         </button>
       </nav>
 
+      {tab==='loading'&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',flexDirection:'column',gap:'1rem'}}><div style={{fontSize:'2rem'}}>⛳</div><div style={{fontFamily:'Syne,sans-serif',fontSize:'.9rem',color:'var(--text3)'}}>Loading…</div></div>}
       {tab==='dashboard'&&<Dashboard teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onDelete={handleDelete} onNew={()=>{setEditTee(null);setBookDate(null);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
       {tab==='new-tee'&&!editTee&&<BookTeeTime players={players} currentUser={currentUser} canManagePlayers={canManagePlayers} onSave={handleSaveTee} onCancel={()=>{setBookDate(null);setTab('dashboard');}} toast={toast} isEdit={false} defaultDate={bookDate}/>}
       {tab==='calendar'&&<CalendarView teeTimes={teeTimes} players={players} currentUser={currentUser} onOpen={setDetailTee} onEdit={t=>{setEditTee(t);setTab('new-tee');}} onNew={d=>{setEditTee(null);setBookDate(d);setTab('new-tee');}} canManagePlayers={canManagePlayers}/>}
