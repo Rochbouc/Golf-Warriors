@@ -23,7 +23,7 @@ const SEED_PLAYERS=[
   {id:'p6',name:'Dave',email:'divadocan@gmail.com',password:'golf',photo:null,role:'player'},
   {id:'p7',name:'Marc LeBlanc',email:'marc@jomaeng.com',password:'golf',photo:null,role:'player'},
   {id:'p9',name:'Roch Boucher',email:'boucher.roch@gmail.com',password:'golf',photo:null,role:'manager'},
-  {id:'p10',name:'Stéphane Lagacé',email:'stephane.lagace@gmail.com',password:'golf',photo:null,role:'manager'},
+  {id:'p10',name:'Stéphane Lagacé',email:'stefgolf72@gmail.com',password:'golf',photo:null,role:'manager'},
   {id:'p12',name:'Alain Malenfant',email:'alain.malenfant@architects4.ca',password:'golf',photo:null,role:'player'},
 ];
 const ADMIN={id:'admin',name:'Admin',email:'admin@golfwarriors.com',password:'golf',photo:null,role:'admin'};
