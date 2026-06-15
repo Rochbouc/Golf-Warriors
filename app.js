@@ -104,6 +104,15 @@ function loadPlayers(){
   const all=[ADMIN,...SEED_PLAYERS];localStorage.setItem('gw_players',JSON.stringify(all));return all;
 }
 function savePlayers(p){localStorage.setItem('gw_players',JSON.stringify(p));}
+function applySeedFixes(players){
+  return players.map(x=>{
+    const seed=SEED_PLAYERS.find(s=>s.id===x.id);
+    if(seed&&(seed.email!==x.email||seed.name!==x.name)){
+      return {...x,email:seed.email,name:seed.name};
+    }
+    return x;
+  }).filter(x=>!['p1','p8','p11','p13'].includes(x.id));
+}
 function loadTeeTimes(){
   const SEED_IDS=['tt1','tt2','tt3','tt4']; // old seed tee times — always remove
   const s=localStorage.getItem('gw_tt');
@@ -876,7 +885,7 @@ function App(){
       const data=await syncRead();
       if(data){
         if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
-        if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+        if(data.players&&Array.isArray(data.players)){const fixed=applySeedFixes(data.players);localStorage.setItem('gw_players',JSON.stringify(fixed));setPlayers(fixed);}
       }
     }catch{}
     setSyncing(false);
@@ -906,7 +915,7 @@ function App(){
       syncRead().then(data=>{
         if(!data)return;
         if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
-        if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+        if(data.players&&Array.isArray(data.players)){const fixed=applySeedFixes(data.players);localStorage.setItem('gw_players',JSON.stringify(fixed));setPlayers(fixed);}
       }).catch(()=>{});
     }
     // Also pull when user returns to the app (tab visibility)
@@ -915,7 +924,7 @@ function App(){
         syncRead().then(data=>{
           if(!data)return;
           if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
-          if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+          if(data.players&&Array.isArray(data.players)){const fixed=applySeedFixes(data.players);localStorage.setItem('gw_players',JSON.stringify(fixed));setPlayers(fixed);}
         }).catch(()=>{});
       }
     };
@@ -940,7 +949,7 @@ function App(){
         const data=await Promise.race([syncRead(),timeout]);
         if(data){
           if(data.teeTimes&&Array.isArray(data.teeTimes)){localStorage.setItem('gw_tt',JSON.stringify(data.teeTimes));setTeeTimes(data.teeTimes);}
-          if(data.players&&Array.isArray(data.players)){localStorage.setItem('gw_players',JSON.stringify(data.players));setPlayers(data.players);}
+          if(data.players&&Array.isArray(data.players)){const fixed=applySeedFixes(data.players);localStorage.setItem('gw_players',JSON.stringify(fixed));setPlayers(fixed);}
         }
       }catch{}
     }
