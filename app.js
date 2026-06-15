@@ -90,6 +90,14 @@ function loadPlayers(){
     // Add any missing seed players
     const missingIds=SEED_PLAYERS.filter(s=>!p.find(x=>x.id===s.id));
     if(missingIds.length)p=[...p,...missingIds];
+    // Sync email/name for existing seed players in case they changed
+    p=p.map(x=>{
+      const seed=SEED_PLAYERS.find(s=>s.id===x.id);
+      if(seed&&(seed.email!==x.email||seed.name!==x.name)){
+        return {...x,email:seed.email,name:seed.name};
+      }
+      return x;
+    });
     localStorage.setItem('gw_players',JSON.stringify(p));
     return p;
   }
