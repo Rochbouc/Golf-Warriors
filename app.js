@@ -355,6 +355,7 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
   const pendCount=invPl.filter(p=>!rsvps[p.id]).length+(live.guests||[]).filter(g=>!g.rsvp).length;
   const isFull=yesCount>=4;
   const alreadyIn=myStatus==='yes';
+  const iAmInvited=(live.invites||[]).includes(currentUser.id);
   return(
     <div className="overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className="modal">
@@ -366,6 +367,7 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
           </div>
           {live.notes&&<div style={{fontSize:'.78rem',color:'var(--text3)',marginBottom:'1rem',padding:'.5rem .75rem',background:'var(--bg2)',borderRadius:'var(--r-sm)',borderLeft:'2px solid var(--border2)'}}>{live.notes}</div>}
 
+          {iAmInvited&&(
           <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:'var(--r-sm)',padding:'.9rem 1rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.6rem'}}>
               <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.08em'}}>My Response</div>
@@ -389,6 +391,7 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
             </div>
             {myStatus&&<div style={{fontSize:'.7rem',color:'#888',textAlign:'center',marginTop:'.5rem'}}>Tap again to change your response</div>}
           </div>
+          )}
 
           <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.08em',marginBottom:'.5rem',display:'flex',alignItems:'center',gap:'.75rem',flexWrap:'wrap'}}>
             <span>Players ({invPl.length+(live.guests||[]).length})</span>
@@ -646,7 +649,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
   const firstDay=new Date(year,month,1).getDay();
   const daysInMonth=new Date(year,month+1,0).getDate();
   const teesByDay={};
-  teeTimes.filter(isUpcoming).forEach(t=>{if(!t.date)return;const d=new Date(t.date+'T12:00:00');if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!teesByDay[k])teesByDay[k]=[];teesByDay[k].push(t);}});
+  teeTimes.filter(isUpcoming).filter(t=>canManagePlayers||(t.invites||[]).includes(currentUser.id)||t.createdBy===currentUser.id).forEach(t=>{if(!t.date)return;const d=new Date(t.date+'T12:00:00');if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!teesByDay[k])teesByDay[k]=[];teesByDay[k].push(t);}});
   const cells=[];
   for(let i=0;i<firstDay;i++)cells.push(null);
   for(let d=1;d<=daysInMonth;d++)cells.push(d);
@@ -723,7 +726,7 @@ function CalendarView({teeTimes,players,currentUser,onOpen,onEdit,onNew,canManag
 
 /* ── DASHBOARD ── */
 function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManagePlayers}){
-  const upcoming=teeTimes.filter(isUpcoming);
+  const upcoming=teeTimes.filter(isUpcoming).filter(t=>canManagePlayers||(t.invites||[]).includes(currentUser.id)||t.createdBy===currentUser.id);
   return(
     <div className="page">
       <div className="ph">
@@ -758,7 +761,7 @@ function Dashboard({teeTimes,players,currentUser,onOpen,onDelete,onNew,canManage
 
 /* ── HISTORY ── */
 function History({teeTimes,players,currentUser,onOpen,onDelete,canManagePlayers}){
-  const past=teeTimes.filter(t=>!isUpcoming(t));
+  const past=teeTimes.filter(t=>!isUpcoming(t)).filter(t=>canManagePlayers||(t.invites||[]).includes(currentUser.id)||t.createdBy===currentUser.id);
   return(
     <div className="page">
       <div className="ph"><div className="ph-left"><div className="ph-eyebrow">Past Rounds</div><h1>History</h1></div></div>
@@ -925,7 +928,7 @@ function App(){
   useEffect(()=>{
     const params=new URLSearchParams(window.location.search);
     const openId=params.get('open');
-    if(openId){window.history.replaceState({},'',window.location.pathname);const t=loadTeeTimes().find(t=>t.id===openId);if(t)setDetailTee(t);}
+    if(openId){window.history.replaceState({},'',window.location.pathname);const t=loadTeeTimes().find(t=>t.id===openId);if(t&&(canManagePlayers||(t.invites||[]).includes(currentUser?.id)||t.createdBy===currentUser?.id))setDetailTee(t);}
     // Pull fresh data from cloud on app load
     if(isSyncConfigured()){
       syncRead().then(data=>{
@@ -998,6 +1001,7 @@ function App(){
     }
     const tee=currentTees.find(t=>t.id===teeId);
     if(!tee)return;
+    if(!(tee.invites||[]).includes(playerId))return;
     const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
     const yesCount=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length+gYes;
     const alreadyIn=(tee.rsvps||{})[playerId]==='yes';
