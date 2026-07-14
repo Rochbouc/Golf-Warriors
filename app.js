@@ -291,6 +291,7 @@ function Stats({teeTimes,players}){
 /* ── TEE CARD ── */
 function TeeCard({tee,players,currentUser,onOpen,onDelete,canManagePlayers}){
   const rsvps=tee.rsvps||{};
+  const max=tee.maxPlayers||4;
   const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
   const gNo=(tee.guests||[]).filter(g=>g.rsvp==='no').length;
   const gPend=(tee.guests||[]).filter(g=>!g.rsvp).length;
@@ -323,10 +324,10 @@ function TeeCard({tee,players,currentUser,onOpen,onDelete,canManagePlayers}){
           <button onClick={e=>{e.stopPropagation();onOpen(tee);}}
             style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'.2rem',background:myStatus==='yes'?'#edf7ee':myStatus==='no'?'#fce8e6':'var(--bg2)',border:`1.5px solid ${myStatus==='yes'?'#a5d6a7':myStatus==='no'?'#ef9a9a':'var(--border2)'}`,borderRadius:8,padding:'.35rem .65rem',cursor:'pointer',fontFamily:'inherit',transition:'all .15s'}}>
             <div style={{display:'flex',gap:'.35rem',fontSize:'.72rem',fontWeight:700}}>
-              {yes>=4?<span style={{color:'#c62828',fontWeight:800,fontSize:'.68rem'}}>⛳ FULL 4/4</span>:<><span className="ty">✓{yes}</span><span className="tn">✗{no}</span><span className="tp">?{pend}</span></>}
+              {yes>=max?<span style={{color:'#c62828',fontWeight:800,fontSize:'.68rem'}}>⛳ FULL {max}/{max}</span>:<><span className="ty">✓{yes}</span><span className="tn">✗{no}</span><span className="tp">?{pend}</span></>}
             </div>
             <span style={{fontSize:'.6rem',fontWeight:700,color:myStatus==='yes'?'#276228':myStatus==='no'?'#c62828':'var(--text3)'}}>
-              {myStatus==='yes'?'YOU: IN ✓':myStatus==='no'?'YOU: OUT ✗':yes>=4?'TEE FULL':'TAP TO RSVP'}
+              {myStatus==='yes'?'YOU: IN ✓':myStatus==='no'?'YOU: OUT ✗':yes>=max?'TEE FULL':'TAP TO RSVP'}
             </span>
           </button>
         </div>
@@ -353,7 +354,7 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
   const yesCount=Object.values(rsvps).filter(r=>r==='yes').length+gYes;
   const noCount=Object.values(rsvps).filter(r=>r==='no').length+gNo;
   const pendCount=invPl.filter(p=>!rsvps[p.id]).length+(live.guests||[]).filter(g=>!g.rsvp).length;
-  const isFull=yesCount>=4;
+  const isFull=yesCount>=(live.maxPlayers||4);
   const alreadyIn=myStatus==='yes';
   const iAmInvited=(live.invites||[]).includes(currentUser.id);
   return(
@@ -371,11 +372,11 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
           <div style={{background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:'var(--r-sm)',padding:'.9rem 1rem',marginBottom:'1rem'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.6rem'}}>
               <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--text3)',textTransform:'uppercase',letterSpacing:'.08em'}}>My Response</div>
-              <div style={{fontSize:'.7rem',fontWeight:700,color:isFull?'#c62828':'#276228'}}>{yesCount}/4 spots filled</div>
+              <div style={{fontSize:'.7rem',fontWeight:700,color:isFull?'#c62828':'#276228'}}>{yesCount}/{live.maxPlayers||4} spots filled</div>
             </div>
             {isFull&&!alreadyIn&&(
               <div style={{background:'#fce8e6',border:'1px solid #ef9a9a',borderRadius:'var(--r-sm)',padding:'.6rem .85rem',marginBottom:'.75rem',fontSize:'.82rem',color:'#c62828',fontWeight:600,lineHeight:1.5,textAlign:'center'}}>
-                ⛳ This tee time is full! (4/4)<br/>
+                ⛳ This tee time is full! ({live.maxPlayers||4}/{live.maxPlayers||4})<br/>
                 <span style={{fontWeight:400,fontSize:'.78rem'}}>Please check the next available tee time.</span>
               </div>
             )}
@@ -423,7 +424,7 @@ function TeeDetailModal({tee,teeTimes,currentUser,onClose,onRsvp,onGuestRsvp,onE
             })}
             {(live.guests||[]).map(g=>{
               const ttlYes=Object.values(rsvps).filter(r=>r==='yes').length+(live.guests||[]).filter(x=>x.rsvp==='yes').length;
-              const gFull=ttlYes>=4;
+              const gFull=ttlYes>=(live.maxPlayers||4);
               const canChangeGuest=canManagePlayers||g.createdBy===currentUser.id;
               return(
                 <div className="rsvp-row" key={g.id} style={{background:'#fffdf0',borderColor:'#ffd166'}}>
@@ -463,6 +464,7 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
   const[date,setDate]=useState(tee?.date||defaultDate||'');
   const[time,setTime]=useState(tee?.time||'');
   const[notes,setNotes]=useState(tee?.notes||'');
+  const[maxPlayers,setMaxPlayers]=useState(tee?.maxPlayers||4);
   const allPl=players.filter(p=>p.role!=='admin');
   const[selected,setSelected]=useState(new Set(isEdit?(tee?.invites||allPl.map(p=>p.id)):allPl.map(p=>p.id)));
   const[guests,setGuests]=useState(tee?.guests||[]);
@@ -479,7 +481,7 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
   const submit=async()=>{
     if(!course||!date||!time){toast('Please fill in course, date & time.','err');return;}
     const invites=[...selected];
-    const newTee={id:tee?.id||uid(),course,date,time,notes,invites,guests,rsvps:tee?.rsvps||{},createdBy:tee?.createdBy||currentUser.id,createdAt:tee?.createdAt||new Date().toISOString()};
+    const newTee={id:tee?.id||uid(),course,date,time,notes,maxPlayers,invites,guests,rsvps:tee?.rsvps||{},createdBy:tee?.createdBy||currentUser.id,createdAt:tee?.createdAt||new Date().toISOString()};
     setSending(true);
     if(isEJSConfigured()){
       const subj=`⛳ Tee Time — ${course} on ${fmtDate(date)}`;
@@ -507,6 +509,17 @@ function BookTeeTime({tee,players,currentUser,canManagePlayers,onSave,onCancel,t
           <div className="fg"><label>Date</label><input type="date" min={isEdit?undefined:today} value={date} onChange={e=>setDate(e.target.value)}/></div>
           <div className="fg"><label>Tee Time</label><input type="time" value={time} onChange={e=>setTime(e.target.value)}/></div>
           <div className="fg wide"><label>Notes</label><textarea placeholder="Dress code, parking info..." value={notes} onChange={e=>setNotes(e.target.value)}/></div>
+          <div className="fg wide">
+            <label>Max Players</label>
+            <div style={{display:'flex',gap:'.5rem'}}>
+              {[4,8].map(n=>(
+                <button key={n} type="button" onClick={()=>setMaxPlayers(n)}
+                  style={{flex:1,padding:'.6rem .5rem',border:`2px solid ${maxPlayers===n?'#276228':'var(--border)'}`,borderRadius:'var(--r-sm)',background:maxPlayers===n?'#edf7ee':'var(--surface)',color:maxPlayers===n?'#276228':'var(--text2)',fontFamily:'Syne,sans-serif',fontSize:'.85rem',fontWeight:700,cursor:'pointer'}}>
+                  {n} Players
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="isec">
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.35rem'}}>
@@ -985,7 +998,6 @@ function App(){
     if(next)await pushSync(next,players);
     setEditTee(null);setBookDate(null);setTab('dashboard');
   };
-  const MAX=4;
   const handleRsvp=async(teeId,playerId,answer)=>{
     // Always pull fresh data first to prevent race conditions
     let currentTees=teeTimes;
@@ -1005,8 +1017,9 @@ function App(){
     const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
     const yesCount=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length+gYes;
     const alreadyIn=(tee.rsvps||{})[playerId]==='yes';
-    if(answer==='yes'&&!alreadyIn&&yesCount>=MAX){
-      toast('⛳ Tee time is full (4/4)! Check the next tee time.','err');return;
+    const max=tee.maxPlayers||4;
+    if(answer==='yes'&&!alreadyIn&&yesCount>=max){
+      toast(`⛳ Tee time is full (${max}/${max})! Check the next tee time.`,'err');return;
     }
     const next=currentTees.map(t=>t.id===teeId?{...t,rsvps:{...t.rsvps,[playerId]:answer}}:t);
     setTeeTimes(next);
@@ -1031,8 +1044,9 @@ function App(){
     const rYes=Object.values(tee.rsvps||{}).filter(r=>r==='yes').length;
     const gYes=(tee.guests||[]).filter(g=>g.rsvp==='yes').length;
     const guest=(tee.guests||[]).find(g=>g.id===guestId);
-    if(answer==='yes'&&guest?.rsvp!=='yes'&&rYes+gYes>=MAX){
-      toast('⛳ Tee time is full (4/4)!','err');return;
+    const max=tee.maxPlayers||4;
+    if(answer==='yes'&&guest?.rsvp!=='yes'&&rYes+gYes>=max){
+      toast(`⛳ Tee time is full (${max}/${max})!`,'err');return;
     }
     const next=currentTees.map(t=>t.id!==teeId?t:{...t,guests:(t.guests||[]).map(g=>g.id===guestId?{...g,rsvp:answer}:g)});
     setTeeTimes(next);
