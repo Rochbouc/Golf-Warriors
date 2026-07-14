@@ -25,6 +25,7 @@ const SEED_PLAYERS=[
   {id:'p9',name:'Roch Boucher',email:'boucher.roch@gmail.com',password:'golf',photo:null,role:'manager'},
   {id:'p10',name:'Stéphane Lagacé',email:'stefgolf72@gmail.com',password:'golf',photo:null,role:'manager'},
   {id:'p12',name:'Alain Malenfant',email:'alain.malenfant@architects4.ca',password:'golf',photo:null,role:'player'},
+  {id:'p14',name:'Chris Leger',email:'legerchris83@gmail.com',password:'golf',photo:null,role:'player'},
 ];
 const ADMIN={id:'admin',name:'Admin',email:'admin@golfwarriors.com',password:'golf',photo:null,role:'admin'};
 const SEED_TT=[];
@@ -105,13 +106,16 @@ function loadPlayers(){
 }
 function savePlayers(p){localStorage.setItem('gw_players',JSON.stringify(p));}
 function applySeedFixes(players){
-  return players.map(x=>{
+  let p=players.map(x=>{
     const seed=SEED_PLAYERS.find(s=>s.id===x.id);
     if(seed&&(seed.email!==x.email||seed.name!==x.name)){
       return {...x,email:seed.email,name:seed.name};
     }
     return x;
   }).filter(x=>!['p1','p8','p11','p13'].includes(x.id));
+  const missing=SEED_PLAYERS.filter(s=>!p.find(x=>x.id===s.id));
+  if(missing.length)p=[...p,...missing];
+  return p;
 }
 function loadTeeTimes(){
   const SEED_IDS=['tt1','tt2','tt3','tt4']; // old seed tee times — always remove
@@ -126,7 +130,19 @@ function loadTeeTimes(){
   return [];
 }
 function saveTeeTimes(t){localStorage.setItem('gw_tt',JSON.stringify(t));}
-function getEJSConfig(){return JSON.parse(localStorage.getItem('ejs_cfg')||'{"publicKey":"","serviceId":"","templateId":"","appUrl":""}');}
+const EJS_PUBLIC_KEY  = 'M4vPSFYiWPCD7DgvE';
+const EJS_SERVICE_ID  = 'service_7ptar2v';
+const EJS_TEMPLATE_ID = 'template_gnmyy26';
+const EJS_APP_URL     = 'https://rochbouc.github.io/Golf-Warriors/';
+function getEJSConfig(){
+  const saved=JSON.parse(localStorage.getItem('ejs_cfg')||'{"publicKey":"","serviceId":"","templateId":"","appUrl":""}');
+  return {
+    publicKey:  EJS_PUBLIC_KEY  || saved.publicKey  || '',
+    serviceId:  EJS_SERVICE_ID  || saved.serviceId  || '',
+    templateId: EJS_TEMPLATE_ID || saved.templateId || '',
+    appUrl:     EJS_APP_URL     || saved.appUrl     || ''
+  };
+}
 function isEJSConfigured(){const c=getEJSConfig();return !!(c.publicKey&&c.serviceId&&c.templateId);}
 function getAppUrl(){const cfg=getEJSConfig();if(cfg.appUrl&&cfg.appUrl.trim())return cfg.appUrl.trim();const loc=window.location.href.split('?')[0].split('#')[0];return loc.startsWith('file://')?'https://your-app.github.io':loc;}
 async function sendEJS(to,name,subj,msg){const c=getEJSConfig();if(!c.publicKey)throw new Error('not configured');return emailjs.send(c.serviceId,c.templateId,{to_email:to,to_name:name,subject:subj,message:msg,app_name:'Golf Warriors'},{publicKey:c.publicKey});}
